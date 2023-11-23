@@ -8,7 +8,7 @@ const app = {
         HEIGHT: 600,
         WIDTH: 600,
 
-        POOL_MAX: 500,
+        POOL_MAX: 2000,
         PX_SIM_RATIO : 3, // Actual pixels HEIGHT(WIDTH) * PX_SIM_RATIO
         PX_SIZE : 3
     },
@@ -161,6 +161,8 @@ class Particle {
     deactivate(){
         this.x = 0;
         this.y = 0;
+        this.vx = 0;
+        this.vy = 0;
         this.active = false;
     }
 }
