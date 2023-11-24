@@ -20,12 +20,13 @@ const app = {
     getMousePos(canvas, event) {
         var rect = canvas.getBoundingClientRect();
         return {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top
+            x: Math.floor(event.clientX - rect.left),
+            y: Math.floor(event.clientY - rect.top)
         };
     },
+
     pMousePos: null,
-    start: function(){
+    start: function(){        
         app.canvas = document.getElementById("main-canvas");
         app.toggleButton = document.getElementById("toggle-button");
         app.ctx = app.canvas.getContext("2d");
@@ -60,6 +61,31 @@ const app = {
         });
 
     
+        app.canvas.addEventListener('touchstart', function(event) {
+            app.isDrawing = true;
+            var mousePos = app.getMousePos(app.canvas, event.touches[0]);
+            app.pMousePos = mousePos
+            simulation.addParticle(mousePos.x / app.config.PX_SIM_RATIO, mousePos.y / app.config.PX_SIM_RATIO, 0, 0);
+        });
+    
+        app.canvas.addEventListener('touchmove', function(event) {
+            if (app.isDrawing) {
+                var mousePos = app.getMousePos(app.canvas, event.touches[0]);
+                let launchspd = 0.1;
+                simulation.addParticle(mousePos.x / app.config.PX_SIM_RATIO, mousePos.y / app.config.PX_SIM_RATIO, launchspd * (mousePos.x - app.pMousePos.x), launchspd * (mousePos.y - app.pMousePos.y));
+                app.pMousePos = mousePos;
+
+            }
+            
+        });
+    
+        app.canvas.addEventListener('touchend', function() {
+            app.isDrawing = false;
+        });
+    
+        app.canvas.addEventListener('touchcancel', function() {
+            app.isDrawing = false;
+        });
 
         app.toggleButton.addEventListener('click', function(){
             if(!app.running){app.resume()}else{app.pause()}
