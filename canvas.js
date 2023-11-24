@@ -141,7 +141,6 @@ const simulation = {
         return y < app.config.PIX_HEIGHT;
     },
 
-    // Currently O(n^2), must optimize
     getOccupied: function(x, y, self){
         if(!simulation.grid[x][y]){return false;}
         return simulation.grid[x][y];
