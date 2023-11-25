@@ -1,4 +1,4 @@
-
+"use strict"
 
 const app = {
     running: false,
@@ -90,6 +90,13 @@ const app = {
         app.toggleButton.addEventListener('click', function(){
             if(!app.running){app.resume()}else{app.pause()}
         });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'P' || e.key === 'p') {
+                if(!app.running){app.resume()}else{app.pause()}
+            }
+          });
+        // Instantiating the particle pool
         simulation.particles = new Array(app.config.POOL_MAX).fill().map(e => new SandParticle(0, 0, 0, 0))
 
         // MAX 800x800 grid, memory seems fine
@@ -98,12 +105,13 @@ const app = {
     },
 
     resume: function(){
+        app.toggleButton.innerHTML = "Pause";
         app.running = true;
         app._updateID =  setInterval(app.update, 1000 / app.config.FPS);
     },
 
     pause: function(){
-        
+        app.toggleButton.innerHTML = "Resume";
         app.running = false;
         clearInterval(app._updateID);
         app._updateID = null;
@@ -134,20 +142,20 @@ const simulation = {
         })
     },
     isInBound: function (x, y){
-        return 0 < x && x < app.config.PIX_WIDTH && 0 < y; // No check for ground yet
+        return (y < app.config.PIX_HEIGHT + 5) && 0 < x && x < app.config.PIX_WIDTH && 0 < y; // No check for ground yet
     },
 
     isAboveGround: function (x, y){
         return y < app.config.PIX_HEIGHT;
     },
 
+    // Does not check for validity
     getOccupied: function(x, y, self){
-        if(!simulation.grid[x][y]){return false;}
         return simulation.grid[x][y];
     },
 
     isOccupied: function(x, y, self){
-        return (simulation.grid[x][y] !== undefined) && (simulation.grid[x][y] !== self);
+        return (simulation.isInBound(x,y) && simulation.grid[x][y] !== undefined) && (simulation.grid[x][y] !== self);
 
 
     },
@@ -181,6 +189,8 @@ const simulation = {
 
 
 class Particle {
+
+
     constructor(x = 0, y = 0, vx = 0, vy = 0){
         this._x = x;
         this._y = y;
@@ -188,57 +198,79 @@ class Particle {
         this.y = y;
         this.vx = vx;
         this.vy = vy;
-        this.e = 0.1;
-        this.dispersion_rate = 10;
-        this.friction = 4;
+
         this.active = false;
     }
 
     update(dt){
 
-        let occupied = simulation.isOccupied(this.x, this.y, this); // Check if current pos occupied by something else
-        
-        simulation.unsetGrid(this.x, this.y)
-        let bottom = simulation.getOccupied(this.x, this.y + 1, null);
+        // Unset current pos
+        simulation.unsetGrid(this.x, this.y);
 
-        if (occupied){ // If current pixel occupied
-            
-            // x direction Dispersion due to overlap - check local height
-            this.vx += ((+(simulation.isOccupied(this.x + 1, this.y - 1, null))) - (+(simulation.isOccupied(this.x - 1, this.y - 1, null)))) * this.dispersion_rate * (1 + Math.random()) * dt;
-            this.vx *= Math.max(0, (1- this.friction * dt))
+        // _ N _
+        // W X E
+        // _ S _
+        // Get occupancy of SE and SW and S
+        let SE = simulation.isOccupied(this.x + 1, this.y + 1, null);
+        let SW = simulation.isOccupied(this.x - 1, this.y + 1, null);
+        let S = simulation.isOccupied(this.x, this.y + 1, null);
 
+        let aboveGround = simulation.isAboveGround(this.x, this.y); // Will be changed to more abstract
+        // When grounded (or falling but a particle at S)
+        if(S){
+            // get x direction dispersion due to local gradient
+            this.vx -= ((+SE) - (+SW)) * Math.random() * this.dispersion_rate * dt;
 
-            //if(!occupied.vy < 0.1){
-            //    
-            //    this.vy = this.vy + (occupied.vy - this.vy) * Math.random();
-           //     occupied.vy = this.vy + (occupied.vy - this.vy) * Math.random();
-            //}
+            // if SE == SW, randomly collapse the "tower"
+            if(!SE && !SW){
+                this.vx += (-1 + 2 * Math.random()) * this.dispersion_rate * dt
+            }
+
+            //velocity loss due to friction
+            if ((this.vy - simulation.getOccupied(this.x, this.y + 1, this).vy) > -0.1){
+                this.vx *= Math.max(0, (1- this.friction * dt));
+            }
+
+            // If grounded (or early stages of S falling)
+            if(simulation.getOccupied(this.x, this.y + 1, null).vy < 0.1){
+                this.vy = 0;
+            }
+    
+        } else {
+            if(aboveGround){
+                
+                // apply gravity
+                this.vy += app.config.G * dt;
+            }
         }
-        if(bottom !== false && bottom.vy < 0.1){
+        
+        this._x += this.vx;
+        this._y += this.vy;
+
+        if (!aboveGround){
+            this._y = app.config.PIX_HEIGHT;
+            this.vx = 0;
             this.vy = 0;
         }
 
         this._x += this.vx;
         this._y += this.vy;
 
-        let aboveGround = simulation.isAboveGround(this.x, this.y); // Next pos oob
-        if (!aboveGround){
-            this._y = app.config.PIX_HEIGHT;
-            this.vx = 0;
-            this.vy = 0;
-            this.x = Math.floor(this._x);
-            this.y = Math.floor(this._y);
-
-            simulation.setGrid(this)
+        let prevX = this.x;
+        let prevY = this.y
+        for(let pos of this.getPassingPoints(this.x, this.y, Math.floor(this._x), Math.floor(this._y))){
+            if(simulation.isOccupied(pos.x, pos.y, this)){
+                this._x = prevX;
+                this._y = prevY;
+                break;
+            }
+            prevX = pos.x;
+            prevY = pos.y;
         }
-
         
-        // dv = g dt
-        if(aboveGround && bottom === false){
-            this.vy += app.config.G * dt;
-        }
         this.x = Math.floor(this._x);
         this.y = Math.floor(this._y);
+        
         simulation.setGrid(this);
 
 
@@ -251,7 +283,45 @@ class Particle {
         this.vy = 0;
         this.active = false;
     }
+
+    getPassingPoints = function* (a, b, c, d) {
+        
+        const dx = Math.abs(c - a);
+        const dy = Math.abs(d - b);
+        const sx = a < c ? 1 : -1;
+        const sy = b < d ? 1 : -1;
+        let err = dx - dy;
+        let x = a;
+        let y = b;
+      
+        while (true) {
+          yield { x, y };
+      
+          if (x === c && y === d) {
+            break;
+          }
+      
+          const e2 = 2 * err;
+      
+          if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+          }
+      
+          if (e2 < dx) {
+            err += dx;
+            y += sy;
+          }
+        }
+      
+        return;
+      }
 }
+
+Particle.prototype.e = 0.1;
+Particle.prototype.dispersion_rate = 10;
+Particle.prototype.friction = 10;
+
 
 class SandParticle extends Particle {
     color = "#c4c356";
@@ -261,6 +331,7 @@ class SandParticle extends Particle {
 }
 
 app.start()
+
 for(let i = 2; i < 10; i += 1){
     simulation.addParticle(10, 10 * i / app.config.PX_SIM_RATIO);
 }

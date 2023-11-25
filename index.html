@@ -8,13 +8,45 @@
     canvas {
       border: 1px solid #000;
     }
+    
+    .settings {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start; /* Adjust this property based on your layout */
+      gap: 10px; /* Adjust the gap between labels and sliders */
+    }
   </style>
 </head>
 <body>
   <canvas id="main-canvas" width="800" height="800"></canvas>
-  <hr/>
+  <br/>
+  <h3>Drag with mouse/finger to create sand (max 2000)</h3>
   <button id="toggle-button">Resume/Pause</button>
-  <h3>Drag with mouse to create sand (max 2000)</h3>
+  (keyboard shortcut P)
+  <!--
+  <div class="settings">
+    <b>Simulation Settings</b>
+    <br/>
+    Simulation Speed (Requires Pause/Resume)
+    <input type="range" min="1" max="100" value="50">
+    <br/>
+    Gravity
+    <input type="range" min="1" max="100" value="50">
+    <br/>
+    <hr/>
+    <b>Create a particle..</b>
+    <br/>
+    Particle dispersion rate
+    <input type="range" min="1" max="100" value="50">
+    <br/>
+    Particle friction
+    <input type="range" min="1" max="100" value="50">
+    <br/>
+    Particle color
+    <input type="color" id="colorPicker" name="colorPicker" value="#ff0000">
+
+  </div>
+  -->
   <script src="canvas.js"></script>
 </body>
 </html>
