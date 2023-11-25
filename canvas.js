@@ -131,10 +131,10 @@ const simulation = {
     update: function(dt){
         app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
         simulation.particles.forEach((e) => {
-            if(!this.isInBound(e.x, e.y)){e.deactivate(); return;}
             if(!e.active){return;}
+            if(!this.isInBound(e.x, e.y)){e.deactivate(); return;}
             e.update(dt)
-            app.ctx.fillStyle = e.color;
+            app.ctx.fillStyle = e.color[0];
             // smooth
             //app.ctx.fillRect(e.x * app.config.PX_SIM_RATIO, e.y * app.config.PX_SIM_RATIO, app.config.PX_SIZE, app.config.PX_SIZE);
             // blocky
@@ -204,8 +204,6 @@ class Particle {
 
     update(dt){
 
-        // Unset current pos
-        simulation.unsetGrid(this.x, this.y);
 
         // _ N _
         // W X E
@@ -215,13 +213,18 @@ class Particle {
         let SW = simulation.isOccupied(this.x - 1, this.y + 1, null);
         let S = simulation.isOccupied(this.x, this.y + 1, null);
 
+        if(S && SE && SW && Math.abs(this.vx) < 0.1 && Math.abs(this.vy) < 0.1){return;}
+
+        // Unset current pos
+        simulation.unsetGrid(this.x, this.y);
+
         let aboveGround = simulation.isAboveGround(this.x, this.y); // Will be changed to more abstract
         // When grounded (or falling but a particle at S)
         if(S){
             // get x direction dispersion due to local gradient
             this.vx -= ((+SE) - (+SW)) * Math.random() * this.dispersion_rate * dt;
 
-            // if SE == SW, randomly collapse the "tower"
+            // if SE == SW == false, randomly collapse the "tower"
             if(!SE && !SW){
                 this.vx += (-1 + 2 * Math.random()) * this.dispersion_rate * dt
             }
@@ -324,12 +327,12 @@ Particle.prototype.friction = 10;
 
 
 class SandParticle extends Particle {
-    color = "#c4c356";
     constructor(x, y, vx, vy){
         super(x, y, vx, vy);
     }
 }
 
+SandParticle.prototype.color = ["#c4c356", "#dbda88", "#a19f4c", "#d6d465"];
 app.start()
 
 for(let i = 2; i < 10; i += 1){
