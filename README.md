@@ -5,6 +5,6 @@
 
 Client-side particle simulation in JS with oversimplified physics.
 
-(Deployed instance simulates max 2000 pooled particles)
+(Deployed instance simulates max 8000 pooled particles)
 
 https://blazenkits.github.io/js-particle-simulation/
