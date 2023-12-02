@@ -13,9 +13,36 @@
     .settings {
       display: flex;
       flex-direction: column;
-      align-items: flex-start; /* Adjust this property based on your layout */
-      gap: 10px; /* Adjust the gap between labels and sliders */
+      align-items: flex-start;
+      gap: 10px;
     }
+
+    #create-particle-menu {
+      margin-left: 10px
+    }
+
+    #particle-list {
+      display: grid;
+      grid-template-columns: repeat(4,100px);
+      grid-gap: 10px;
+      margin-top: 20px;
+    }
+
+    .particle-button {
+      width: 60px;
+      height: 60px;
+    }
+
+    .particle-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .particle-active-outline {
+      border-width: 3px;
+    }
+
   </style>
 </head>
 <body class="bg-dark text-white">
@@ -27,40 +54,76 @@
       <div class="col-md-4 flex-grow-1">
         <br/>
         <h3>Particle Simulation</h3>
-        Drag with mouse/finger to create sand (max 2000)
+        Drag with mouse/finger to create particles
         <br/><br/>
         <button id="toggle-button" class="btn btn-primary">Resume/Pause</button>
         (keyboard shortcut P)
+        <hr/>
+        <div>
+          <b>Particles</b> <br/>
+        <div id="particle-list">
+          <!--
+          <div class="particle-item">
+            <button type="button" class="btn btn-primary particle-button">sdf</button>
+            Test
+          </div>
+          -->
+        </div>
+        </div>
+
+        <br/>
+<!--
+        <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#create-particle-menu" aria-expanded="false" aria-controls="create-particle-menu">
+            Create..
+        </button>
+
+
+
+
+
+        <div class="collapse" id="create-particle-menu">
+          <b>Create a particle..</b>
+          <br/>
+
+          Dispersion rate
+          <input type="range" min="1" max="100" value="50">
+          <br/>
+
+          Friction
+          <input type="range" min="1" max="100" value="50">
+          <br/>
+
+          Particle color
+          <input type="color" id="colorPicker" name="colorPicker" value="#ff0000">
+
+          
+          Particle Physics
+          -> Standard
+          -> Bouncy
+          
+        </div>
+        <hr/>
+        <div class="settings">
+          <b>Simulation Settings</b>
+          <br/>
+          Simulation Speed (Requires Pause/Resume)
+          <input type="range" min="1" max="100" value="50">
+          <br/>
+          Gravity
+          <input type="range" min="1" max="100" value="50">
+          <br/>
+          <hr/>
+        </div>
       </div>
       <br/>
+      -->
       <a href="https://github.com/blazenkits/js-particle-simulation/tree/main" class="text-info">Github Source</a>
     </div>
   </div>
-  <!--
-  <div class="settings">
-    <b>Simulation Settings</b>
-    <br/>
-    Simulation Speed (Requires Pause/Resume)
-    <input type="range" min="1" max="100" value="50">
-    <br/>
-    Gravity
-    <input type="range" min="1" max="100" value="50">
-    <br/>
-    <hr/>
-    <b>Create a particle..</b>
-    <br/>
-    Particle dispersion rate
-    <input type="range" min="1" max="100" value="50">
-    <br/>
-    Particle friction
-    <input type="range" min="1" max="100" value="50">
-    <br/>
-    Particle color
-    <input type="color" id="colorPicker" name="colorPicker" value="#ff0000">
 
-  </div>
-  -->
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  <script src="particledata.js"></script>
   <script src="canvas.js"></script>
 </body>
 </html>

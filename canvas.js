@@ -2,13 +2,20 @@
 
 const app = {
     running: false,
+    canvas: null,
+    toggleButton: null,
+    ctx: null,
+
+    placingID: 1,
+    
+    pMousePos: null,
     config: {
         G: 9.8,
         FPS: 60,
-        HEIGHT: 600,
-        WIDTH: 600,
+        HEIGHT: 700,
+        WIDTH: 700,
 
-        POOL_MAX: 2000,
+        POOL_MAX: 8000,
         PX_SIM_RATIO : 3, // Actual pixels HEIGHT(WIDTH) * PX_SIM_RATIO
         PX_SIZE : 3,
 
@@ -25,17 +32,19 @@ const app = {
         };
     },
 
-    pMousePos: null,
+
     start: function(){        
         app.canvas = document.getElementById("main-canvas");
         app.toggleButton = document.getElementById("toggle-button");
         app.ctx = app.canvas.getContext("2d");
+        app.particleList = document.getElementById("particle-list");
         app.config.PIX_HEIGHT = Math.floor(app.config.HEIGHT / app.config.PX_SIM_RATIO);
         app.config.PIX_WIDTH = Math.floor(app.config.WIDTH / app.config.PX_SIM_RATIO);
         if(app.config.PIX_HEIGHT > 1000 || app.config.PIX_WIDTH > 1000){
-            console.log("Too many pixels. Did not implement a proper hashmap yet sry")
             return;
         }
+
+        // Add event listeners
         app.canvas.addEventListener('mousedown', function(event) {
             app.isDrawing = true;
             var mousePos = app.getMousePos(app.canvas, event);
@@ -88,20 +97,44 @@ const app = {
         });
 
         app.toggleButton.addEventListener('click', function(){
-            if(!app.running){app.resume()}else{app.pause()}
+            app.toggle();
         });
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'P' || e.key === 'p') {
-                if(!app.running){app.resume()}else{app.pause()}
-            }
+            if (e.key === 'P' || e.key === 'p') {app.toggle()}
           });
         // Instantiating the particle pool
-        simulation.particles = new Array(app.config.POOL_MAX).fill().map(e => new SandParticle(0, 0, 0, 0))
+        simulation.particles = new Array(app.config.POOL_MAX).fill().map(e => new Particle(0, 0, 0, 0))
 
-        // MAX 800x800 grid, memory seems fine
         simulation.grid = new Array(app.config.PIX_HEIGHT + 10).fill().map(e => new Array(app.config.PIX_WIDTH + 10))
-        app.resume();
+        
+        // Add the particle buttons
+        for(const k of Object.keys(simulation.particleData)){
+            let e = simulation.particleData[k]
+            app.particleList.innerHTML += 
+            '<div class="particle-item">'+
+            `<button type="button" data-particleid="${k}" class="btn particle-button" style="background-color: ${e.color[0]}" onClick="app.onParticleButtonPressed(this)"></button>`+
+            `${e.name}`+
+            '</div>'
+        }
+        app.resume()
+    },
+    switchToParticle(id){
+        this.placingID = id;
+    },
+
+    onParticleButtonPressed(e){
+        this.switchToParticle(parseInt(e.dataset.particleid));
+        for(let i of app.particleList.getElementsByTagName("button")){
+            i.classList.remove("btn-outline-primary", "particle-active-outline");
+        }
+        e.classList.add("btn-outline-primary", "particle-active-outline");
+
+
+    },
+
+    toggle: function(){
+        if(!app.running){app.resume()}else{app.pause()}
     },
 
     resume: function(){
@@ -128,19 +161,22 @@ const app = {
 const simulation = {
     particles: null,
     grid: null,
+    particleData: particle_data,
+
     update: function(dt){
         app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
         simulation.particles.forEach((e) => {
             if(!e.active){return;}
             if(!this.isInBound(e.x, e.y)){e.deactivate(); return;}
             e.update(dt)
-            app.ctx.fillStyle = e.color[0];
+            app.ctx.fillStyle = this.particleData[e.id].color[0];
             // smooth
             //app.ctx.fillRect(e.x * app.config.PX_SIM_RATIO, e.y * app.config.PX_SIM_RATIO, app.config.PX_SIZE, app.config.PX_SIZE);
             // blocky
             app.ctx.fillRect(Math.round(e.x) * app.config.PX_SIM_RATIO, Math.round(e.y) * app.config.PX_SIM_RATIO, app.config.PX_SIZE, app.config.PX_SIZE);
         })
     },
+
     isInBound: function (x, y){
         return (y < app.config.PIX_HEIGHT + 5) && 0 < x && x < app.config.PIX_WIDTH && 0 < y; // No check for ground yet
     },
@@ -170,6 +206,7 @@ const simulation = {
             e.vx = vx;
             e.vy = vy;
             e.active = true;
+            e.id = app.placingID;
             return 1;
         }
         return -1; // Fail
@@ -189,8 +226,6 @@ const simulation = {
 
 
 class Particle {
-
-
     constructor(x = 0, y = 0, vx = 0, vy = 0){
         this._x = x;
         this._y = y;
@@ -198,13 +233,25 @@ class Particle {
         this.y = y;
         this.vx = vx;
         this.vy = vy;
-
+        this.id = 0;
         this.active = false;
     }
 
+    base(){
+        return simulation.particleData[this.id];
+    }
+    
     update(dt){
+        if(Object.hasOwn(this.base(), 'override_physics')){
+            this.base().override_physics(this, dt);
+        } else {
+            this.update_physics( dt);
+        }
 
+    }
 
+    update_physics(dt){
+        
         // _ N _
         // W X E
         // _ S _
@@ -222,16 +269,16 @@ class Particle {
         // When grounded (or falling but a particle at S)
         if(S){
             // get x direction dispersion due to local gradient
-            this.vx -= ((+SE) - (+SW)) * Math.random() * this.dispersion_rate * dt;
+            this.vx -= ((+SE) - (+SW)) * Math.random() * this.base().dispersion_rate * dt;
 
             // if SE == SW == false, randomly collapse the "tower"
             if(!SE && !SW){
-                this.vx += (-1 + 2 * Math.random()) * this.dispersion_rate * dt
+                this.vx += (-1 + 2 * Math.random()) * this.base().dispersion_rate * dt
             }
 
             //velocity loss due to friction
             if ((this.vy - simulation.getOccupied(this.x, this.y + 1, this).vy) > -0.1){
-                this.vx *= Math.max(0, (1- this.friction * dt));
+                this.vx *= Math.max(0, (1- this.base().friction * dt));
             }
 
             // If grounded (or early stages of S falling)
@@ -276,8 +323,8 @@ class Particle {
         
         simulation.setGrid(this);
 
-
     }
+    
 
     deactivate(){
         this.x = 0;
@@ -321,9 +368,8 @@ class Particle {
       }
 }
 
-Particle.prototype.e = 0.1;
-Particle.prototype.dispersion_rate = 10;
-Particle.prototype.friction = 10;
+
+
 
 
 class SandParticle extends Particle {
@@ -332,7 +378,23 @@ class SandParticle extends Particle {
     }
 }
 
-SandParticle.prototype.color = ["#c4c356", "#dbda88", "#a19f4c", "#d6d465"];
+
+
+class RockParticle extends Particle {
+    constructor(x, y, vx, vy){
+        super(x, y, vx, vy);
+    }
+}
+
+
+
+class JumpyParticle extends Particle {
+    constructor(x, y, vx, vy){
+        super(x, y, vx, vy);
+    }
+}
+
+
 app.start()
 
 for(let i = 2; i < 10; i += 1){
