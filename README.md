@@ -9,8 +9,8 @@ Client-side particle simulation in JS with oversimplified physics.
 
 - Custom properties and physics for particles, defined in `particledata.js`
 
-- TBA: Particle Interactions, pressure, etc.
+- Particle Interactions, pressure, etc.
 
 https://blazenkits.github.io/js-particle-simulation/
 
-(Deployed instance simulates max 8000 pooled particles)
+(simulates max 8000 particles)
