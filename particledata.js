@@ -1,32 +1,40 @@
 function cfn_gel_physics(particle, dt){
-    
+    if(particle.get('lifespan') < Infinity){
+        particle.ticks++;
+        if(particle.ticks == particle.get('lifespan')){
+            particle.deactivate();
+            return;
+        }
+    }
     // _ N _
     // W X E
     // _ S _
     // Get occupancy of SE and SW and S
-
     let SE = simulation.isOccupied(particle.x + 1, particle.y + 1, null);
     let SW = simulation.isOccupied(particle.x - 1, particle.y + 1, null);
     let S = simulation.isOccupied(particle.x, particle.y + 1, null);
 
-    this.vx += (simulation.pressure_grid[particle.x][particle.y][0] / particle.get('mass') / 100)
-    this.vy += (simulation.pressure_grid[particle.x][particle.y][1] / particle.get('mass') / 100)
+    
+    particle.vx += (simulation.pressure_grid.get(particle.x, particle.y, 0) / particle.get('mass') / 100)
+    particle.vy += (simulation.pressure_grid.get(particle.x, particle.y, 1) / particle.get('mass') / 100)
     if(S && SE && SW && Math.abs(particle.vx) < 0.1 && Math.abs(particle.vy) < 0.1){return;}
+
     // Unset current pos
     simulation.unsetGrid(particle.x, particle.y);
-
     let aboveGround = simulation.isAboveGround(particle.x, particle.y); // Will be changed to more abstract
     // When grounded (or falling but a particle at S)
     if(S){
         // get x direction dispersion due to local gradient
-        particle.vx += ((+SE) - (+SW)) * Math.random() * particle.base().dispersion_rate * dt;
+        particle.vx += ((+SE) - (+SW)) * Math.random() * particle.get('dispersion_rate') * dt;
 
         // if SE == SW == false, randomly collapse the "tower"
-
+        if(!SE && !SW){
+            particle.vx += (-1 + 2 * Math.random()) * particle.get('dispersion_rate') * dt
+        }
 
         //velocity loss due to friction
         if ((particle.vy - simulation.getOccupied(particle.x, particle.y + 1, particle).vy) > -0.1){
-            particle.vx *= Math.max(0, (1- particle.base().friction * dt));
+            particle.vx *= Math.max(0, (1- particle.get('friction') * dt));
         }
 
         // If grounded (or early stages of S falling)
@@ -38,13 +46,10 @@ function cfn_gel_physics(particle, dt){
         if(aboveGround){
             
             // apply gravity
-            particle.vy += simulation.config.G * dt;
+            particle.vy += particle.getGravity() * dt;
         }
     }
     
-    particle._x += particle.vx;
-    particle._y += particle.vy;
-
     if (!aboveGround){
         particle._y = app.config.SIM_HEIGHT;
         particle.vx = 0;
@@ -54,13 +59,34 @@ function cfn_gel_physics(particle, dt){
     particle._x += particle.vx;
     particle._y += particle.vy;
 
-
     let prevX = particle.x;
     let prevY = particle.y;
     for(let pos of particle.getPassingPoints(particle.x, particle.y, Math.floor(particle._x), Math.floor(particle._y))){
         if(simulation.isOccupied(pos.x, pos.y, particle)){
             particle._x = prevX;
             particle._y = prevY;
+
+            let o = simulation.getOccupied(pos.x, pos.y, particle);
+            let e = (particle.get('e') + o.get('e')) / 2;
+            let m1 = particle.get('mass');
+            let m2 = o.get('mass');
+
+            let ca = (m1 - e * m2) / (m1 + m2)
+            let cb = (m2 * (1 + e))/ (m1 + m2)
+            particle.vx = ca * particle.vx + cb * o.vx;
+            particle.vy = ca * particle.vy + cb * o.vy;
+
+            let da = (m1 * (1 + e)) / (m1 + m2)
+            let db = (m2 - e * m1) / (m1 + m2)
+            
+            o.vx = da * particle.vx + db * o.vx;
+            o.vy = da * particle.vy + db * o.vy;
+            //let vxS = (o.vx + particle.vx)
+            //let vyS = (o.vy + particle.vy)
+            //particle.vx = vxS * (1 - e);
+            //o.vx = vxS * e;
+            //particle.vy = vyS * (1 - e);
+            //o.vy = vyS * e;
             break;
         }
         prevX = pos.x;
@@ -71,6 +97,8 @@ function cfn_gel_physics(particle, dt){
     particle.y = Math.floor(particle._y);
     
     simulation.setGrid(particle);
+
+    
 
 }
 
@@ -114,6 +142,23 @@ function cfn_turn_into(into, velRandF = 0 ){
 }
 
 function cfn_destroy(particle, dt){particle.deactivate()};
+
+
+// The Most Average Particle
+default_particle = {
+    name: "Default Particle",
+    dispersion_rate: 10,
+    friction: 10,
+    mass: 1,
+    interact:[],
+    color: ["#777777"],
+    lifespan: Infinity,
+    tooltip: " ",
+    blocks_pressure: false,
+    e: 0.8,
+        // Coeff. of restitution.
+    do_collision_sim: true
+}
 
 const Particles = {
     SAND:   1,
@@ -215,7 +260,9 @@ particle_data[Particles.FIRE] = {
     color: ["#ff9233", "#dbda88", "#a19f4c", "#d6d465"],
     lifespan: 400,
     gravity: -0.2,
-    interact: [[Particles.WATER, cfn_destroy, 5]]
+    interact: [[Particles.WATER, cfn_destroy, 5]],
+    
+    do_collision_sim: false
 }
 
 particle_data[Particles.SAWDUST] = {
@@ -266,8 +313,8 @@ particle_data[Particles.TNT] = {
                     if (simulation.isInBound(_y + dx, _y + dy)){
 
 
-                        simulation.pressure_grid[_x + dx][_y + dy][0] = 120 * Math.sign(dx);
-                        simulation.pressure_grid[_x + dx][_y + dy][1] = 120 * Math.sign(dy);
+                        simulation.pressure_grid.set(_x + dx, _y + dy, 0, 600 * Math.sign(dx));
+                        simulation.pressure_grid.set(_x + dx, _y + dy, 1, 600 * Math.sign(dy));
                         
                     }
                 }
@@ -285,6 +332,7 @@ particle_data[Particles.WALL] = {
     gravity: 0,
     solid: true,
     color: ["#ffffff"],
+    blocks_pressure: true,
 
     override_physics: function(particle, dt){
         particle.vx = 0

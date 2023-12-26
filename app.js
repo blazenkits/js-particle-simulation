@@ -20,6 +20,10 @@ const app = {
     mousevy: 0,
     brushSize: 1,
 
+    fpsWindow: 20,
+    frameTime: 0, 
+    lastTime: Date.now(),
+
 
     config: { // Contains config for the App. For config of Simulation, modify the config there.
         FPS: 60,            // FPS
@@ -49,6 +53,7 @@ const app = {
         app.canvas = document.getElementById("main-canvas");
         app.toggleButton = document.getElementById("toggle-button");
         app.particleCounter = document.getElementById("particle-counter");
+        app.fpsCounter = document.getElementById("fps-counter");
         app.brushSizeRange = document.getElementById("brush-size-range");
         app.ctx = app.canvas.getContext("2d");
         app.particleList = document.getElementById("particle-list");
@@ -175,6 +180,7 @@ const app = {
         // Add counter update interval
         setInterval(() => {
             app.particleCounter.innerHTML = "" + simulation.count_particles() + "/" + simulation.config.MAX_PARTICLES;
+            app.fpsCounter.innerHTML = "" + (1000/app.frameTime).toFixed(1)
         }, 1000);
 
         app.resume();
@@ -231,6 +237,12 @@ const app = {
     },
 
     update: function(){
+        // Get FPS
+        var nowLoop = Date.now()
+        var nowFrameTime = nowLoop - app.lastTime;
+        app.frameTime += (nowFrameTime - app.frameTime) / app.fpsWindow;
+        app.lastTime = nowLoop;
+
         app.brushSize = app.brushSizeRange.value;
         simulation.update(1 / app.config.FPS);
         if(app.isDrawing)
@@ -246,10 +258,10 @@ const app = {
 
         if(app.drawPressureGrid){
             
-            for(let i = 0; i < app.config.SIM_WIDTH;i++){
+            for(let i = 0; i < app.config.SIM_WIDTH; i++){
                 for(let j = 0; j < app.config.SIM_HEIGHT; j++){ // Iterate for every simulation pixel
                     
-                    var vData = Math.floor(Math.min((Math.abs(simulation.pressure_grid[i][j][0]) + Math.abs(simulation.pressure_grid[i][j][1])) * 10, 255));
+                    var vData = Math.floor(Math.min((Math.abs(simulation.pressure_grid.get(i, j, 0)) + Math.abs(simulation.pressure_grid.get(i, j, 1))) * 10, 255));
                     for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
                         for(var l = 0; l < app.config.PX_SIM_RATIO; l++){ // Iterate for every real pixel in simulated pix.
                             let n = app.config.CANVAS_WIDTH * (3*j + l) + 3*i + k;
@@ -289,27 +301,21 @@ const simulation = {
     particles: null,        // Particles[] containing every particle
     grid: null,             // Particles[WIDTH][HEIGHT] containing position of every particle
     pressure_grid: null,    // Vec2[WIDTH][HEIGHT] containing the 'pressure gradient' of a position
+    _pressure_grid: null,
     update_count: 0,        // Number of calls to update()
     particleData: null,     // Reference to data on particles
 
+    pUpdateCycle: 0,
     config: {
         MAX_PARTICLES: 20000,
         WIDTH: null,        // Width of simulation (Currently auto-set in App startup)
         HEIGHT: null,       // Height of simulation
     
         G: 9.8,             // Default gravity
+        COLLISION_CONST: 0.8
     },
 
-    default_particle: {
-        name: "Dev Block",
-        dispersion_rate: 10,
-        friction: 10,
-        mass: 1,
-        interact:[],
-        color: ["#777777"],
-        lifespan: Infinity,
-        tooltip: " "
-    },
+    default_particle: default_particle,
     
     count_particles: function(){
         let a = 0; for(let i of simulation.particles){if(i.active){a++}} return a;
@@ -323,8 +329,15 @@ const simulation = {
         // Instantiate the arrays
         simulation.particles = new Array(simulation.config.MAX_PARTICLES).fill().map(e => new Particle(0, 0, 0, 0))
         simulation.grid = new Array(simulation.config.WIDTH + 10).fill().map(e => new Array(simulation.config.HEIGHT + 10))
-        simulation.pressure_grid = new Array(simulation.config.WIDTH + 10).fill().map(e => new Array(simulation.config.HEIGHT + 10).fill().map(e=> new Float32Array(2))) // Contains the pressure
-    },
+        
+        // 2D array flattening
+        // pressure_grid[i][j][k] = pressure_grid[w * (simulation.config.WIDTH + 10) + h * (simulation.config.HEIGHT + 10)]
+        simulation.pressure_grid = new PressureArray((simulation.config.WIDTH + 10), (simulation.config.HEIGHT + 10)) // Contains the pressure
+
+        simulation._pressure_grid = new PressureArray((simulation.config.WIDTH + 10), (simulation.config.HEIGHT + 10)) // Contains the pressure
+        },
+
+
 
     update: function(dt){
         simulation.update_count++;
@@ -342,58 +355,83 @@ const simulation = {
     },
 
     update_pressure: function(dt){
-        for(let i = 0; i < app.config.SIM_WIDTH; i++){
-            for(let j = 0; j < app.config.SIM_HEIGHT; j++){
-                const DISP_RATE = 3 * dt;       // Dispersion of pressure
-                const FADE_RATE = 1 * dt;       // Loss of pressure
-                const SPEED = 2;
-                let px = simulation.pressure_grid[i][j][0];
-                let py = simulation.pressure_grid[i][j][1];
 
-                // For every pixel in the x gradient direction convey the pressure
-                if (simulation.isInBound(i + SPEED * Math.sign(px), j)){
-                    simulation.pressure_grid[i + SPEED * Math.sign(px)][j][0] += DISP_RATE * px;
-                    
+        
+        // The iteration order is shuffled to prevent directional wave speed differences.
+        // Not the most mathematically sound solution.
+        switch(this.pUpdateCycle = (this.pUpdateCycle + 1) % 4){
+            case 0:
+                for(let i = 0; i < app.config.SIM_WIDTH; i++){
+                    for(let j = 0; j < app.config.SIM_HEIGHT; j++){
+                        this._update_pressure_iter(i, j, dt);
+                    }
                 }
+                break;
 
-                if (simulation.isInBound(i + SPEED * Math.sign(px), j + SPEED)){
-                    simulation.pressure_grid[i + SPEED * Math.sign(px)][j + SPEED][0] += DISP_RATE * px;
-                    
+            case 1:
+                for(let i = app.config.SIM_WIDTH - 1; i > -1; i--){
+                    for(let j = 0; j < app.config.SIM_HEIGHT; j++){
+                        this._update_pressure_iter(i, j, dt);
+                    }
                 }
-
-                if (simulation.isInBound(i + SPEED* Math.sign(px), j - SPEED)){
-                    simulation.pressure_grid[i + SPEED * Math.sign(px)][j - SPEED][0] += DISP_RATE * px;
-                    
+                break;
+            case 2:
+                for(let j = 0; j < app.config.SIM_HEIGHT; j++){
+                    for(let i = 0; i < app.config.SIM_WIDTH; i++){
+                        this._update_pressure_iter(i, j, dt);
+                    }
                 }
-
-                // For every pixel in the y gradient direction convey the pressure
-                if (simulation.isInBound(i + SPEED, j + SPEED * Math.sign(py))){
-                    simulation.pressure_grid[i + SPEED][j + SPEED * Math.sign(py)][1] += DISP_RATE * py;
+                break;
+            case 3:
+                for(let j = app.config.SIM_HEIGHT; j > -1; j--){
+                    for(let i = 0; i < app.config.SIM_WIDTH; i++){
+                        this._update_pressure_iter(i, j, dt);
+                    }
                 }
-
-                if (simulation.isInBound(i, j + SPEED* Math.sign(py))){
-                    simulation.pressure_grid[i][j + SPEED * Math.sign(py)][1] += DISP_RATE * py;
-                }
-
-                if (simulation.isInBound(i - SPEED, j + SPEED* Math.sign(py))){
-                    simulation.pressure_grid[i - SPEED][j + SPEED * Math.sign(py)][1] += DISP_RATE * py;
-                }
-
-                // Update self
-                simulation.pressure_grid[i][j][0] = (1 - 3 * DISP_RATE - FADE_RATE) * px
-                simulation.pressure_grid[i][j][1] = (1 - 3 * DISP_RATE - FADE_RATE) * py
-
-            
-
-                    
-                
-            }
-
+                break;
         }
 
+    },
 
+    _update_pressure_iter(i, j, dt){
+        const DISP_RATE = 3 * dt;       // Dispersion of pressure
+        const FADE_RATE = 1 * dt;       // Loss of pressure
+        const SPEED = 2;
+        let px = simulation.pressure_grid.get(i, j, 0);
+        let py = simulation.pressure_grid.get(i, j, 1);
 
+        // For every pixel in the x gradient direction convey the pressure
+        if (simulation.isInBound(i + SPEED * Math.sign(px), j)){
+            simulation.pressure_grid.incr(i + SPEED * Math.sign(px), j, 0, DISP_RATE * px);
+            
+        }
 
+        if (simulation.isInBound(i + SPEED * Math.sign(px), j + SPEED)){
+            simulation.pressure_grid.incr(i + SPEED * Math.sign(px), j + SPEED, 0, DISP_RATE * px);
+            
+        }
+
+        if (simulation.isInBound(i + SPEED* Math.sign(px), j - SPEED)){
+            simulation.pressure_grid.incr(i + SPEED * Math.sign(px), j - SPEED, 0, DISP_RATE * px);
+            
+        }
+
+        // For every pixel in the y gradient direction convey the pressure
+        if (simulation.isInBound(i + SPEED, j + SPEED * Math.sign(py))){
+            simulation.pressure_grid.incr(i + SPEED, j + SPEED * Math.sign(py), 1, DISP_RATE * py);
+        }
+
+        if (simulation.isInBound(i, j + SPEED* Math.sign(py))){
+            simulation.pressure_grid.incr(i ,j + SPEED * Math.sign(py), 1, DISP_RATE * py);
+        }
+
+        if (simulation.isInBound(i - SPEED, j + SPEED* Math.sign(py))){
+            simulation.pressure_grid.incr(i - SPEED, j + SPEED * Math.sign(py), 1, DISP_RATE * py);
+        }
+
+        // Update self
+        simulation.pressure_grid.set(i, j, 0, (1 - 3 * DISP_RATE - FADE_RATE) * px);
+        simulation.pressure_grid.set(i, j, 1, (1 - 3 * DISP_RATE - FADE_RATE) * py);
     },
 
     isInBound: function (x, y){
@@ -450,6 +488,17 @@ const simulation = {
     }
 }
 
+class PressureArray extends Float32Array{
+    constructor(w, h){
+        super(w * h * 2);
+        this.fill(0);
+    }
+    
+    get(w, h, n){return this[w * (simulation.config.HEIGHT + 10) * 2 + h * 2 + n]}
+    set(w, h, n, val){this[w * (simulation.config.HEIGHT + 10) * 2 + h * 2 + n] = val}
+    incr(w, h, n, val){this[w * (simulation.config.HEIGHT + 10) * 2 + h * 2 + n] += val}
+
+}
 
 class Particle {
     constructor(x = 0, y = 0, vx = 0, vy = 0){
@@ -518,8 +567,8 @@ class Particle {
         let S = simulation.isOccupied(this.x, this.y + 1, null);
 
         
-        this.vx += (simulation.pressure_grid[this.x][this.y][0] / this.get('mass') / 100)
-        this.vy += (simulation.pressure_grid[this.x][this.y][1] / this.get('mass') / 100)
+        this.vx += (simulation.pressure_grid.get(this.x, this.y, 0) / this.get('mass') / 100)
+        this.vy += (simulation.pressure_grid.get(this.x, this.y, 1) / this.get('mass') / 100)
         if(S && SE && SW && Math.abs(this.vx) < 0.1 && Math.abs(this.vy) < 0.1){return;}
 
         // Unset current pos
@@ -568,6 +617,31 @@ class Particle {
             if(simulation.isOccupied(pos.x, pos.y, this)){
                 this._x = prevX;
                 this._y = prevY;
+                let o = simulation.getOccupied(pos.x, pos.y, this);
+
+                // Actual collision simulation
+                if(this.get('do_collision_sim') || o.get('do_collision_sim')){
+                    let e = (this.get('e') + o.get('e')) / 2;
+                    let m1 = this.get('mass');
+                    let m2 = o.get('mass');
+
+                    let ca = (m1 - e * m2) / (m1 + m2)
+                    let cb = (m2 * (1 + e))/ (m1 + m2)
+                    this.vx = ca * this.vx + cb * o.vx;
+                    this.vy = ca * this.vy + cb * o.vy;
+
+                    let da = (m1 * (1 + e)) / (m1 + m2)
+                    let db = (m2 - e * m1) / (m1 + m2)
+
+                    o.vx = da * this.vx + db * o.vx;
+                    o.vy = da * this.vy + db * o.vy;
+                    //let vxS = (o.vx + this.vx)
+                    //let vyS = (o.vy + this.vy)
+                    //this.vx = vxS * (1 - e);
+                    //o.vx = vxS * e;
+                    //this.vy = vyS * (1 - e);
+                    //o.vy = vyS * e;
+                }
                 break;
             }
             prevX = pos.x;
