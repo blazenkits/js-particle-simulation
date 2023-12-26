@@ -151,13 +151,14 @@ default_particle = {
     friction: 10,
     mass: 1,
     interact:[],
-    color: ["#777777"],
+    color:  ['#777777', 119, 119, 119],
     lifespan: Infinity,
     tooltip: " ",
     blocks_pressure: false,
     e: 0.8,
         // Coeff. of restitution.
-    do_collision_sim: true
+    do_collision_sim: true,
+    cohesion: 0.01
 }
 
 const Particles = {
@@ -188,7 +189,8 @@ particle_data[Particles.SAND] = {
     dispersion_rate: 10,
     friction: 10,
     mass: 1,
-    color: ["#c4c356"]
+    cohesion: 5e-3,
+    color: ['#c4c356', 196, 195, 86]
 }
 
 
@@ -198,7 +200,8 @@ particle_data[Particles.ROCK] = {
     dispersion_rate: 5,
     friction: 50,
     mass: 4,
-    color: ["#9ea5b0"]
+    cohesion: 5e-3,
+    color: ['#9ea5b0', 158, 165, 176]
 }
 
 particle_data[Particles.SILT] = {
@@ -208,7 +211,7 @@ particle_data[Particles.SILT] = {
     friction: 10,
     gravity: 0.9,
     mass: 0.4,
-    color: ["#f2e1cb"]
+    color: ['#f2e1cb', 242, 225, 203]
 }
 
 particle_data[Particles.WATER] = {
@@ -218,7 +221,7 @@ particle_data[Particles.WATER] = {
     friction: 0,
     gravity: 10,
     mass: 1,
-    color: ["#0aa1ff"]
+    color: ['#0aa1ff', 10, 161, 255]
 }
 
 particle_data[Particles.ICE] = {
@@ -227,7 +230,7 @@ particle_data[Particles.ICE] = {
     dispersion_rate: 50,
     friction: 5,
     mass: 0.5,
-    color: ["#cbe7f7"],
+    color: ['#cbe7f7', 203, 231, 247],
     interact: [[Particles.FIRE, cfn_turn_into(Particles.WATER), 10]]
 }
 
@@ -237,7 +240,7 @@ particle_data[Particles.GEL] = {
     dispersion_rate: 10,
     friction: 10,
     mass: 2,
-    color: ["#e3f5b8", "#dbda88", "#a19f4c", "#d6d465"],
+    color: ['#e3f5b8', 227, 245, 184],
 
     //interact: [[Particles.FIRE, cfn_turn_into(Particles.LIQUID_GEL), 10]],
     override_physics: cfn_gel_physics,
@@ -249,7 +252,7 @@ particle_data[Particles.LIQUID_GEL] = {
     dispersion_rate: 10,
     friction: 10,
     
-    color: ["#c5d4a1"]
+    color: ['#c5d4a1', 197, 212, 161]
 }
 
 particle_data[Particles.FIRE] = {
@@ -257,11 +260,10 @@ particle_data[Particles.FIRE] = {
     tooltip: "Very hot, ignites and melts stuff.",
     dispersion_rate: 10,
     mass: 1,
-    color: ["#ff9233", "#dbda88", "#a19f4c", "#d6d465"],
+    color: ['#ff9233', 255, 146, 51],
     lifespan: 400,
     gravity: -0.2,
     interact: [[Particles.WATER, cfn_destroy, 5]],
-    
     do_collision_sim: false
 }
 
@@ -272,7 +274,7 @@ particle_data[Particles.SAWDUST] = {
     mass: 0.6,
     gravity: 0.92,
     interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 3]],
-    color: ["#7a6350"]
+    color: ['#7a6350', 122, 99, 80]
 }
 
 particle_data[Particles.DUST] = {
@@ -282,7 +284,7 @@ particle_data[Particles.DUST] = {
     mass: 0.2,
     gravity: 0.82,
     interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 15]],
-    color: ["#a6a68b"]
+    color: ['#a6a68b', 166, 166, 139]
 }
 
 particle_data[Particles.TNT] = {
@@ -292,7 +294,7 @@ particle_data[Particles.TNT] = {
     friction: 10,
     gravity: 14,
     mass: 4,
-    color: ["#c92239"],
+    color: ['#c92239', 201, 34, 57],
     pre_physics_update: function(particle, dt){
         if((simulation.update_count + Math.floor(10 * Math.random()))% 10) return;
         let match = false;
@@ -331,7 +333,7 @@ particle_data[Particles.WALL] = {
     dispersion_rate: 0,
     gravity: 0,
     solid: true,
-    color: ["#ffffff"],
+    color: ['#ffffff', 255, 255, 255],
     blocks_pressure: true,
 
     override_physics: function(particle, dt){
@@ -348,7 +350,7 @@ particle_data[Particles.FUSE] = {
     dispersion_rate: 0,
     gravity: 0,
     solid: true,
-    color: ["#2b5761"],
+    color: ['#2b5761', 43, 87, 97],
     interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 1]],
     override_physics: function(particle, dt){
         particle.vx = 0

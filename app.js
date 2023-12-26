@@ -255,7 +255,9 @@ const app = {
     
     updateCanvas: function(e){
         /// Debug pressure view
-
+        app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
+        
+        app.imageData = app.ctx.createImageData(app.config.CANVAS_WIDTH, app.config.CANVAS_HEIGHT);
         if(app.drawPressureGrid){
             
             for(let i = 0; i < app.config.SIM_WIDTH; i++){
@@ -274,19 +276,22 @@ const app = {
                     }
                 }
             }
-            app.ctx.putImageData(app.imageData, 0, 0);
 
         }
         
         // Draw the particles
         simulation.particles.forEach((e) => {
             if(!e.active){return;}
-            app.ctx.fillStyle = (simulation.particleData[e.id].color  || ["#000000"])[0];
-            // Draw particles
-            app.ctx.fillRect(Math.round(e.x) * app.config.PX_SIM_RATIO, Math.round(e.y) * app.config.PX_SIM_RATIO, app.config.PX_SIM_RATIO, app.config.PX_SIM_RATIO);
+            for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
+                for(var l = 0; l < app.config.PX_SIM_RATIO; l++){
+                    let n = app.config.CANVAS_WIDTH * (3*e.y + l) + 3*e.x + k;
+                    let c = e.get('color');
+                    app.imageData.data[4*n] = c[1];
+                    app.imageData.data[4*n+1] = c[2];    // RED (0-255);    // GREEN (0-255)
+                    app.imageData.data[4*n+2] = c[3];    // BLUE (0-255)
+                    app.imageData.data[4*n+3] = 255;}}})
 
-        })
-
+        app.ctx.putImageData(app.imageData, 0, 0);
         // Draw the mouse cursor
         app.ctx.beginPath();
         app.ctx.arc(app.mousePos.x, app.mousePos.y, app.brushSize * app.config.PX_SIM_RATIO, 0, 2 * Math.PI, false);
@@ -341,7 +346,6 @@ const simulation = {
 
     update: function(dt){
         simulation.update_count++;
-        app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
         // Update pressure
         simulation.update_pressure(dt);
         simulation.particles.forEach((e) => {
@@ -511,6 +515,7 @@ class Particle {
         this.id = 0;
         this.active = false;
         this.ticks = 0;
+        this.stable = false;
     }
 
     base(){
@@ -577,11 +582,15 @@ class Particle {
         // When grounded (or falling but a particle at S)
         if(S){
             // get x direction dispersion due to local gradient
-            this.vx -= ((+SE) - (+SW)) * Math.random() * this.get('dispersion_rate') * dt;
-
+            if(!this.stable){
+                this.vx -= ((+SE) - (+SW)) * Math.random() * this.get('dispersion_rate') * dt;
+            }
             // if SE == SW == false, randomly collapse the "tower"
-            if(!SE && !SW){
+            if(!this.stable && !SE && !SW){
                 this.vx += (-1 + 2 * Math.random()) * this.get('dispersion_rate') * dt
+            } else {
+                
+                if(Math.abs(this.vx) < this.get('cohesion') && Math.abs(this.vy) < this.get('cohesion')) this.stable = true;
             }
 
             //velocity loss due to friction
@@ -593,10 +602,11 @@ class Particle {
             if(simulation.getOccupied(this.x, this.y + 1, null).vy < 0.1){
                 this.vy = 0;
             }
+            
     
         } else {
             if(aboveGround){
-                
+                this.stable = false;
                 // apply gravity
                 this.vy += this.getGravity() * dt;
             }
@@ -620,7 +630,8 @@ class Particle {
                 let o = simulation.getOccupied(pos.x, pos.y, this);
 
                 // Actual collision simulation
-                if(this.get('do_collision_sim') || o.get('do_collision_sim')){
+                if(this.get('do_collision_sim') && o.get('do_collision_sim')){
+                    o.stable = false;
                     let e = (this.get('e') + o.get('e')) / 2;
                     let m1 = this.get('mass');
                     let m2 = o.get('mass');
@@ -654,6 +665,7 @@ class Particle {
         simulation.setGrid(this);
 
     }
+
     
     getGravity(){
         if(Object.hasOwn(this.base(), 'gravity')){
