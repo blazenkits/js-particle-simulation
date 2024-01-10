@@ -6,6 +6,8 @@ Client-side particle simulation in JS with oversimplified physics.
 <br/>
 - Inspired by The Powder Toy.
 
+- Simulation made in vanilla JS
+
 - Custom properties and physics for particles, defined in `particledata.js`
 
 - Particle Interactions, pressure, etc.
