@@ -1,3 +1,221 @@
+/*
+particledata.js contains data on all the particles in the simulation.
+
+To add a particle:
+1. Add an entry to the Particles enum
+2. Add an entry to particle_data as
+    particle_data[Particles.MY_PARTICLE] = {}
+    with properties as in default_particles.
+3. You may override update_physics with override_physics or add custom pre_physics_update
+The particles are automatically added to the list of available particles in the UI.
+*/
+
+// The Most Average Particle
+default_particle = {
+    name: "Default Particle",
+    dispersion_rate: 10,
+    friction: 10,
+    mass: 1,
+    interact:[],
+    env_interact:[],
+    color:  ['#777777', 119, 119, 119],
+    lifespan: Infinity,
+    tooltip: " ",
+    blocks_pressure: false,
+    e: 0.8, // Coeff. of restitution.
+    do_collision_sim: true,
+    cohesion: 0.01,
+    base_temp: 273,
+}
+
+const Particles = {
+    SAND:   1,
+    ROCK:   2,
+    SILT:   3,
+    WATER:  4,
+    ICE:    5,
+    FIRE:   6,
+    TNT:    7,
+    GEL:    8,
+    LIQUID_GEL: 9,
+    DUST: 10,
+    SAWDUST: 11,
+
+    // Solids
+    WALL: 12,
+    FUSE: 13
+    
+}
+
+
+const particle_data = {}
+
+particle_data[Particles.SAND] = {
+    name: "Sand",
+    tooltip: "Sand, inert.",
+    dispersion_rate: 10,
+    friction: 10,
+    mass: 1,
+    cohesion: 5e-3,
+    color: ['#c4c356', 196, 195, 86]
+}
+
+
+particle_data[Particles.ROCK] = {
+    name: "Rock",
+    tooltip: "Rock: Heavy, inert particles.",
+    dispersion_rate: 5,
+    friction: 50,
+    mass: 4,
+    cohesion: 5e-3,
+    color: ['#9ea5b0', 158, 165, 176]
+}
+
+particle_data[Particles.SILT] = {
+    name: "Silt",
+    tooltip: "Finer sand. Lightweight and inert.",
+    dispersion_rate: 10,
+    friction: 10,
+    gravity: 0.9,
+    mass: 0.4,
+    color: ['#f2e1cb', 242, 225, 203]
+}
+
+particle_data[Particles.WATER] = {
+    name: "Pseudowater",
+    tooltip: "Particle simulator's attempt at making a liquid. <br>Unrealistically high surface tension. <br>Puts out fires!",
+    dispersion_rate: 30,
+    friction: 0,
+    gravity: 10,
+    mass: 1,
+    color: ['#0aa1ff', 10, 161, 255]
+}
+
+particle_data[Particles.ICE] = {
+    name: "Ice",
+    tooltip: "Frozen (pseudo)water. Melts. Very slippery.",
+    dispersion_rate: 50,
+    friction: 5,
+    mass: 0.5,
+    color: ['#cbe7f7', 203, 231, 247],
+    base_temp: 260,
+    env_interact: [[(particle) => particle.temperature > 273, cfn_turn_into(Particles.WATER), 10]]
+}
+
+particle_data[Particles.GEL] = {
+    name: "Gel",
+    tooltip: "Gel (currently nonfunctional).",
+    dispersion_rate: 10,
+    friction: 10,
+    mass: 2,
+    color: ['#e3f5b8', 227, 245, 184],
+
+    interact: [[Particles.FIRE, cfn_turn_into(Particles.LIQUID_GEL), 10]],
+}
+
+particle_data[Particles.LIQUID_GEL] = {
+    name: "Liquid Gel",
+    tooltip: "Molten gel.",
+    dispersion_rate: 10,
+    friction: 10,
+    
+    color: ['#c5d4a1', 197, 212, 161]
+}
+
+particle_data[Particles.FIRE] = {
+    name: "Fire",
+    tooltip: "Very hot, ignites and melts stuff.",
+    dispersion_rate: 10,
+    mass: 1,
+    color: ['#ff9233', 255, 146, 51],
+    lifespan: 400,
+    gravity: -0.2,
+    interact: [[Particles.WATER, cfn_destroy, 5]],
+    do_collision_sim: false
+}
+
+particle_data[Particles.SAWDUST] = {
+    name: "Sawdust",
+    tooltip: "Extremely flammable.",
+    friction: 30,
+    mass: 0.6,
+    gravity: 0.92,
+    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE, 1, 0), 3]],
+    color: ['#7a6350', 122, 99, 80]
+}
+
+particle_data[Particles.DUST] = {
+    name: "Dust",
+    tooltip: "Extremely lightweight, also somewhat flammable.",
+    friction: 30,
+    mass: 0.2,
+    gravity: 0.82,
+    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE, 2), 15]],
+    color: ['#a6a68b', 166, 166, 139]
+}
+
+particle_data[Particles.TNT] = {
+    name: "TNT",
+    tooltip: "Warning: Explosive! Ignite with fire. <hr>Explosive power: 60",
+    dispersion_rate: 10,
+    friction: 10,
+    gravity: 14,
+    mass: 4,
+    color: ['#c92239', 201, 34, 57],
+    pre_physics_update: function(particle, dt){
+        if((simulation.update_count + Math.floor(10 * Math.random()))% 10) return;
+        let match = false;
+        let _x = particle.x; let _y = particle.y;
+        for(let pos of [[-1, 1], [-1, 0], [-1, -1], [0, -1], [0, 1], [1, 1], [1, 0], [1, -1]]){
+            if (simulation.isOccupied(particle.x + pos[0], particle.y + pos[1], null) && simulation.getOccupied(particle.x + pos[0], particle.y + pos[1], null).id == Particles.FIRE){
+                
+                particle.deactivate();
+                match = true;
+                simulation.addParticle(_x, _y, 0, 0, Particles.FIRE)//-2 + 4 * Math.random(), -Math.random(), 5);
+                break;
+            }
+        }
+
+        if(match && 0 < _x && _x < simulation.config.WIDTH - 1 && 0 < _y && _y < simulation.config.HEIGHT - 1){
+            simulation.pressure_grid.inc(_x, _y, 600);
+        }
+    }
+}
+
+particle_data[Particles.WALL] = {
+    name: "Wall",
+    tooltip: "Stops all particles in its path.",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#ffffff', 255, 255, 255],
+    blocks_pressure: true,
+
+    override_physics: function(particle, dt){
+        particle.vx = 0
+        particle.vy = 0
+        simulation.setGrid(particle);
+    }
+}
+
+particle_data[Particles.FUSE] = {
+    name: "Fuse",
+    tooltip: "Solid. Will ignite at a steady pace.",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#2b5761', 43, 87, 97],
+    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE, 1, 5), 1]],
+    override_physics: function(particle, dt){
+        particle.vx = 0
+        particle.vy = 0
+        simulation.setGrid(particle);
+    }
+}
+
+
 function cfn_gel_physics(particle, dt){
     if(particle.get('lifespan') < Infinity){
         particle.ticks++;
@@ -124,8 +342,6 @@ function cfn_fire_physics(particle, dt){
 
     particle._x += particle.vx;
     particle._y += particle.vy;
-    particle.vx += (simulation.pressure_grid[particle.x][particle.y][0] / particle.base().mass / 100)
-    particle.vy += (simulation.pressure_grid[particle.x][particle.y][1] / particle.base().mass / 100)
     particle.x = Math.floor(particle._x);
     particle.y = Math.floor(particle._y);
     
@@ -133,228 +349,17 @@ function cfn_fire_physics(particle, dt){
 
 }
 
-function cfn_turn_into(into, velRandF = 0 ){
-    return (particle, dt) => {
+
+
+function cfn_turn_into(into, velRandF = 0, minTick = 1){
+    return (particle, dt, other) => {
+        if(other.ticks < minTick) return;
+        
         let _x = particle.x; let _y = particle.y;
         particle.deactivate();
         simulation.addParticle(_x, _y, velRandF *(-1 + 2 * Math.random()), velRandF *(-1 + 2 * Math.random()), into);
     }
 }
 
-function cfn_destroy(particle, dt){particle.deactivate()};
 
-
-// The Most Average Particle
-default_particle = {
-    name: "Default Particle",
-    dispersion_rate: 10,
-    friction: 10,
-    mass: 1,
-    interact:[],
-    color:  ['#777777', 119, 119, 119],
-    lifespan: Infinity,
-    tooltip: " ",
-    blocks_pressure: false,
-    e: 0.8,
-        // Coeff. of restitution.
-    do_collision_sim: true,
-    cohesion: 0.01
-}
-
-const Particles = {
-    SAND:   1,
-    ROCK:   2,
-    SILT:   3,
-    WATER:  4,
-    ICE:    5,
-    FIRE:   6,
-    TNT:    7,
-    GEL:    8,
-    LIQUID_GEL: 9,
-    DUST: 10,
-    SAWDUST: 11,
-
-    // Solids
-    WALL: 12,
-    FUSE: 13
-    
-}
-
-
-const particle_data = {}
-
-particle_data[Particles.SAND] = {
-    name: "Sand",
-    tooltip: "Sand, inert.",
-    dispersion_rate: 10,
-    friction: 10,
-    mass: 1,
-    cohesion: 5e-3,
-    color: ['#c4c356', 196, 195, 86]
-}
-
-
-particle_data[Particles.ROCK] = {
-    name: "Rock",
-    tooltip: "Rock: Heavy, inert particles.",
-    dispersion_rate: 5,
-    friction: 50,
-    mass: 4,
-    cohesion: 5e-3,
-    color: ['#9ea5b0', 158, 165, 176]
-}
-
-particle_data[Particles.SILT] = {
-    name: "Silt",
-    tooltip: "Finer sand. Lightweight and inert.",
-    dispersion_rate: 10,
-    friction: 10,
-    gravity: 0.9,
-    mass: 0.4,
-    color: ['#f2e1cb', 242, 225, 203]
-}
-
-particle_data[Particles.WATER] = {
-    name: "Pseudowater",
-    tooltip: "Particle simulator's attempt at making a liquid. <br>Unrealistically high surface tension. <br>Puts out fires!",
-    dispersion_rate: 30,
-    friction: 0,
-    gravity: 10,
-    mass: 1,
-    color: ['#0aa1ff', 10, 161, 255]
-}
-
-particle_data[Particles.ICE] = {
-    name: "Ice",
-    tooltip: "Frozen (pseudo)water. Melts. Very slippery.",
-    dispersion_rate: 50,
-    friction: 5,
-    mass: 0.5,
-    color: ['#cbe7f7', 203, 231, 247],
-    interact: [[Particles.FIRE, cfn_turn_into(Particles.WATER), 10]]
-}
-
-particle_data[Particles.GEL] = {
-    name: "Gel",
-    tooltip: "Code bug transformed into a particle. Likes to clump up.",
-    dispersion_rate: 10,
-    friction: 10,
-    mass: 2,
-    color: ['#e3f5b8', 227, 245, 184],
-
-    //interact: [[Particles.FIRE, cfn_turn_into(Particles.LIQUID_GEL), 10]],
-    override_physics: cfn_gel_physics,
-}
-
-particle_data[Particles.LIQUID_GEL] = {
-    name: "Liquid Gel",
-    tooltip: "Molten gel.",
-    dispersion_rate: 10,
-    friction: 10,
-    
-    color: ['#c5d4a1', 197, 212, 161]
-}
-
-particle_data[Particles.FIRE] = {
-    name: "Fire",
-    tooltip: "Very hot, ignites and melts stuff.",
-    dispersion_rate: 10,
-    mass: 1,
-    color: ['#ff9233', 255, 146, 51],
-    lifespan: 400,
-    gravity: -0.2,
-    interact: [[Particles.WATER, cfn_destroy, 5]],
-    do_collision_sim: false
-}
-
-particle_data[Particles.SAWDUST] = {
-    name: "Sawdust",
-    tooltip: "Extremely flammable.",
-    friction: 30,
-    mass: 0.6,
-    gravity: 0.92,
-    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 3]],
-    color: ['#7a6350', 122, 99, 80]
-}
-
-particle_data[Particles.DUST] = {
-    name: "Dust",
-    tooltip: "Extremely lightweight, also somewhat flammable.",
-    friction: 30,
-    mass: 0.2,
-    gravity: 0.82,
-    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 15]],
-    color: ['#a6a68b', 166, 166, 139]
-}
-
-particle_data[Particles.TNT] = {
-    name: "TNT",
-    tooltip: "Warning: Explosive! Ignite with fire. <hr>Explosive power: 60",
-    dispersion_rate: 10,
-    friction: 10,
-    gravity: 14,
-    mass: 4,
-    color: ['#c92239', 201, 34, 57],
-    pre_physics_update: function(particle, dt){
-        if((simulation.update_count + Math.floor(10 * Math.random()))% 10) return;
-        let match = false;
-        let _x = particle.x; let _y = particle.y;
-        for(let pos of [[-1, 1], [-1, 0], [-1, -1], [0, -1], [0, 1], [1, 1], [1, 0], [1, -1]]){
-            if (simulation.isOccupied(particle.x + pos[0], particle.y + pos[1], null) && simulation.getOccupied(particle.x + pos[0], particle.y + pos[1], null).id == Particles.FIRE){
-                
-                particle.deactivate();
-                match = true;
-                simulation.addParticle(_x, _y, 0, 0, Particles.FIRE)//-2 + 4 * Math.random(), -Math.random(), 5);
-                break;
-            }
-        }
-
-        if(match){
-            for(let dx of [-1, 0, 1]){
-                for(let dy of [-1, 0, 1]){
-                    if (simulation.isInBound(_y + dx, _y + dy)){
-
-
-                        simulation.pressure_grid.set(_x + dx, _y + dy, 0, 600 * Math.sign(dx));
-                        simulation.pressure_grid.set(_x + dx, _y + dy, 1, 600 * Math.sign(dy));
-                        
-                    }
-                }
-            }
-            
-        }
-    }
-}
-
-particle_data[Particles.WALL] = {
-    name: "Wall",
-    tooltip: "Stops all particles in its path.",
-    friction: 30,
-    dispersion_rate: 0,
-    gravity: 0,
-    solid: true,
-    color: ['#ffffff', 255, 255, 255],
-    blocks_pressure: true,
-
-    override_physics: function(particle, dt){
-        particle.vx = 0
-        particle.vy = 0
-        simulation.setGrid(particle);
-    }
-}
-
-particle_data[Particles.FUSE] = {
-    name: "Quick Fuse",
-    tooltip: "Solid. Will ignite rapidly.",
-    friction: 30,
-    dispersion_rate: 0,
-    gravity: 0,
-    solid: true,
-    color: ['#2b5761', 43, 87, 97],
-    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE), 1]],
-    override_physics: function(particle, dt){
-        particle.vx = 0
-        particle.vy = 0
-        simulation.setGrid(particle);
-    }
-}
+function cfn_destroy(particle, dt, other){particle.deactivate()};
