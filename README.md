@@ -15,3 +15,5 @@ Client-side particle simulation in JS with oversimplified physics.
 Example: https://blazenkits.github.io/js-particle-simulation/
 
 (simulates max 20000 particles)
+
+If you have any bugs or feature requests feel to notify me so I might look at it :).
