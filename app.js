@@ -292,15 +292,15 @@ const app = {
         }
 
         // Draw the particles
-        const P = simulation.config.MAX_PARTICLES
+        const P = simulation.particles.length
         for(let i = 0; i < P; i++){
             let e = simulation.particles[i]
             if(!e.active){continue;}
+            let c = e.base().color;
             for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
                 for(var l = 0; l < app.config.PX_SIM_RATIO; l++){
                     let n = app.config.CANVAS_WIDTH * (3*e.y + l) + 3*e.x + k;
 
-                    let c = e.base().color;
                     app.imageData.data[4*n] = c[1];
                     app.imageData.data[4*n+1] = c[2];
                     app.imageData.data[4*n+2] = c[3];
