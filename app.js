@@ -4,10 +4,20 @@
 // 
 
 // app performs direct DOM manipulation
+
+const OverlayEnum = {
+    NONE:   0,
+    PRESSURE: 1,
+    VELOCITYX: 2,
+    VELOCITYY: 3,
+    GAME: 4,
+    DETONATOR_PLACEMENT: 5
+    
+}
 const app = {
-    debug_mode: false,
+    debug_mode: true,
     running: false,
-    drawPressureGrid: false,
+    overlayMode: OverlayEnum.NONE,
     canvas: null,
     toggleButton: null,
     brushSizeRange: null,
@@ -21,7 +31,7 @@ const app = {
     mousevx: 0,
     mousevy: 0,
     brushSize: 1,
-
+    detonateAtFrame: false,
     fpsWindow: 20,
     frameTime: 0, 
     lastTime: Date.now(),
@@ -58,7 +68,9 @@ const app = {
         app.fpsCounter = document.getElementById("fps-counter");
         app.brushSizeRange = document.getElementById("brush-size-range");
         app.ctx = app.canvas.getContext("2d");
-        app.particleList = document.getElementById("particle-list");
+        app.destructableWallParticleList = document.getElementById("destructable-wall-particles");
+        app.indestructableParticleList = document.getElementById("indestructable-particles");
+        app.particleList = document.getElementById("particles");
         app.config.SIM_HEIGHT = Math.floor(app.config.HEIGHT / app.config.PX_SIM_RATIO);
         app.config.SIM_WIDTH = Math.floor(app.config.WIDTH / app.config.PX_SIM_RATIO);
         app.config.CANVAS_HEIGHT = app.canvas.height;
@@ -86,7 +98,7 @@ const app = {
             // Debug
             if(app.debug_mode && event.button == 1){
                 event.preventDefault();
-                console.log(simulation.getOccupied(Math.round(mousePos.x / app.config.PX_SIM_RATIO), Math.round(mousePos.y/ app.config.PX_SIM_RATIO)))
+                console.log(simulation.pressure_grid.get(Math.round(mousePos.x / app.config.PX_SIM_RATIO), Math.round(mousePos.y/ app.config.PX_SIM_RATIO)))
             }
         });
     
@@ -96,6 +108,8 @@ const app = {
             if (app.isDrawing) {
                 app.mousevx = app.config.LAUNCH_SPEED_MUL * (mousePos.x - app.mousePos.x);
                 app.mousevy = app.config.LAUNCH_SPEED_MUL * (mousePos.y - app.mousePos.y);
+                
+                app.drawParticleFromInput();        
             }
 
             if (app.isErasing) {
@@ -104,6 +118,7 @@ const app = {
             }
             
             app.mousePos = mousePos;
+            
         });
 
         app.canvas.addEventListener('wheel', function(event) {
@@ -118,7 +133,11 @@ const app = {
             }
             app.brushSizeRange.value = app.brushSize;
         });
-    
+        document.addEventListener('wheel', function(event){
+            if(event.deltaY > 0) {
+                document.getElementById("scroll-info").style.display = 'none'
+            }
+        })
         app.canvas.addEventListener('mouseup', function() {
             app.isDrawing = false;
             app.isErasing = false;
@@ -164,8 +183,35 @@ const app = {
         });
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'P' || e.key === 'p') {app.toggle()}
-            if (e.key === '1') {app.onDrawPressureGridButtonPressed()}
+            switch (e.key) {
+                case 'P':
+                case 'p':
+                    app.toggle()
+                    break;
+                
+                case 'Q':
+                case 'q':
+                    app.detonateAtFrame = true
+                    break;
+                case '`':
+                case '0':
+                    app.overlayChange(OverlayEnum.NONE);
+                    break;
+                case '1':
+                    app.overlayChange(OverlayEnum.PRESSURE);
+                    break;
+                case '2':
+                    app.overlayChange(OverlayEnum.VELOCITYX);
+                    break;
+                case '3':
+                    app.overlayChange(OverlayEnum.VELOCITYY);
+                    break;
+                //case '4':
+                //    app.overlayChange(OverlayEnum.GAME);
+                //    break;
+                default:
+                    break;
+            }
           });
 
         // Start the simulation
@@ -174,12 +220,24 @@ const app = {
         // Add particle buttons
         for(const k of Object.keys(simulation.particleData)){
             let e = simulation.particleData[k]
-            app.particleList.innerHTML += 
-            '<div class="particle-item">'+
+            let t = '<div class="particle-item">'+
             `<button type="button" data-particleid="${k}" class="btn particle-button" style="background-color: ${(e.color || ["#000000"])[0]}"` 
             +  `data-bs-html="true" data-bs-toggle="tooltip" data-bs-title="${e.tooltip || "Click to select"}" data-bs-custom-class="particle-tooltip" onClick="app.onParticleButtonPressed(this)"></button>`+
             `${e.name || 'Missingno.'}`+
             '</div>'
+            switch (e.class) {
+                case ParticleClass.POWDER:
+                    app.particleList.innerHTML += t
+                    break;
+            
+                case ParticleClass.DESTRUCTABLE_WALL:
+                    app.destructableWallParticleList.innerHTML += t
+                    break;
+                case ParticleClass.INDESTRUCTABLE:
+                    app.indestructableParticleList.innerHTML += t
+                    break;
+            }
+
         }
         
         
@@ -197,16 +255,35 @@ const app = {
     },
 
     drawParticleFromInput(){
+        if(app.overlayMode === OverlayEnum.GAME) return;
+        else if(app.overlayMode === OverlayEnum.DETONATOR_PLACEMENT){
+            
+            for(let i = -1; i < 1; i++){
+                for(let j = -1; j < 1; j++){
+                    simulation.addParticle(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j, app.mousevx, app.mousevy, Particles.DETONATOR, true);
+                    
+                }
+            }
+            alert("Press Q to detonate!");
+        }
+        else {
         for(let i = -app.brushSize; i < app.brushSize; i++)
             for(let j = -app.brushSize; j < app.brushSize; j++)
                 if(simulation.isAboveGround(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j)){
                     simulation.addParticle(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j, app.mousevx, app.mousevy, app.placingID)};
+        }
     },
 
     eraseParticleFromInput(){
+        if(app.overlayMode === OverlayEnum.GAME) return;
+
         for(let i = -app.brushSize; i < app.brushSize; i++)
-            for(let j = -app.brushSize; j < app.brushSize; j++)
-                simulation.removeParticle(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j, app.mousevx, app.mousevy, app.placingID);
+            for(let j = -app.brushSize; j < app.brushSize; j++){
+                if(app.overlayMode == OverlayEnum.DETONATOR_PLACEMENT){
+                    simulation.removeParticle(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j, app.placingID);
+                }
+                simulation.removeParticle(app.mousePos.x / app.config.PX_SIM_RATIO + i, app.mousePos.y / app.config.PX_SIM_RATIO + j);
+            }
    
     },
 
@@ -216,7 +293,7 @@ const app = {
 
     onParticleButtonPressed(e){
         this.switchToParticle(parseInt(e.dataset.particleid));
-        for(let i of app.particleList.getElementsByTagName("button")){
+        for(let i of document.getElementsByTagName("button")){
             i.classList.remove("btn-outline-primary", "particle-active-outline");
         }
         e.classList.add("btn-outline-primary", "particle-active-outline");
@@ -224,8 +301,8 @@ const app = {
 
     },
 
-    onDrawPressureGridButtonPressed(){
-        this.drawPressureGrid = !this.drawPressureGrid;
+    overlayChange(id){
+        this.overlayMode = id;
 
 
     },
@@ -241,6 +318,10 @@ const app = {
     },
 
     pause: function(){
+        
+        app.ctx.font = '32px Barlow';
+        app.ctx.fillStyle = 'white';
+        app.ctx.fillText("PAUSED", (app.config.CANVAS_WIDTH - 120) /2, app.config.CANVAS_HEIGHT/2); 
         app.toggleButton.innerHTML = "Resume";
         app.running = false;
         clearInterval(app._updateID);
@@ -257,20 +338,21 @@ const app = {
         app.brushSize = app.brushSizeRange.value;
         
         // Update the simulation
-        simulation.update(1 / app.config.FPS);
+        if(app.overlayMode == OverlayEnum.GAME)
+            game.update(1 / app.config.FPS);
         
-        if(app.isDrawing)
-            app.drawParticleFromInput();        
+            
+        simulation.update(1 / app.config.FPS);
         app.updateCanvas();
-          
+        app.detonateAtFrame = false
     },
     
     updateCanvas: function(){
         app.ctx.clearRect(0, 0, app.canvas.width, app.canvas.height);
         app.imageData = app.ctx.createImageData(app.config.CANVAS_WIDTH, app.config.CANVAS_HEIGHT);
-        
+
         // Draw the pressure
-        if(app.drawPressureGrid){
+        if(app.overlayMode === OverlayEnum.PRESSURE){
             for(let i = 0; i < app.config.SIM_WIDTH; i++){
                 for(let j = 0; j < app.config.SIM_HEIGHT; j++){ // Iterate for every simulation pixel
 
@@ -291,34 +373,119 @@ const app = {
 
         }
 
-        // Draw the particles
-        const P = simulation.particles.length
-        for(let i = 0; i < P; i++){
-            let e = simulation.particles[i]
-            if(!e.active){continue;}
-            let c = e.base().color;
-            for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
-                for(var l = 0; l < app.config.PX_SIM_RATIO; l++){
-                    let n = app.config.CANVAS_WIDTH * (3*e.y + l) + 3*e.x + k;
+        else if(app.overlayMode === OverlayEnum.VELOCITYX){
+            for(let i = 0; i < app.config.SIM_WIDTH; i++){
+                for(let j = 0; j < app.config.SIM_HEIGHT; j++){ // Iterate for every simulation pixel
 
-                    app.imageData.data[4*n] = c[1];
-                    app.imageData.data[4*n+1] = c[2];
-                    app.imageData.data[4*n+2] = c[3];
-                    app.imageData.data[4*n+3] = 255;
+                    var vData = Math.floor(Math.max(Math.min((simulation.velocity_grid_x.qget(i, j)) * app.config.PRESSURE_COLOR_RATIO, 255), -255));
+                    var vP = (vData > 0)
+                    for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
+                        for(var l = 0; l < app.config.PX_SIM_RATIO; l++){ // Iterate for every real pixel in simulated pix.
+                            let n = app.config.CANVAS_WIDTH * (3*j + l) + 3*i + k;
+                            app.imageData.data[4*n] = 0;
+                            app.imageData.data[4*n+1] = vP? vData: 0;
+                            app.imageData.data[4*n+2] = vP? 0 : -vData;
+                            app.imageData.data[4*n+3] = 255; 
+
+                        }
+                    }
+                }
+            }
+
+        }
+        else if(app.overlayMode === OverlayEnum.VELOCITYY){
+            for(let i = 0; i < app.config.SIM_WIDTH; i++){
+                for(let j = 0; j < app.config.SIM_HEIGHT; j++){ // Iterate for every simulation pixel
+
+                    var vData = Math.floor(Math.max(Math.min((simulation.velocity_grid_y.qget(i, j)) * app.config.PRESSURE_COLOR_RATIO, 255), -255));
+                    var vP = (vData > 0)
+                    for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
+                        for(var l = 0; l < app.config.PX_SIM_RATIO; l++){ // Iterate for every real pixel in simulated pix.
+                            let n = app.config.CANVAS_WIDTH * (3*j + l) + 3*i + k;
+                            app.imageData.data[4*n] = 0;
+                            app.imageData.data[4*n+1] = vP? vData: 0;
+                            app.imageData.data[4*n+2] = vP? 0 : -vData;
+                            app.imageData.data[4*n+3] = 255; 
+
+                        }
+                    }
+                }
+            }
+
+        }
+        
+        else if(app.overlayMode === OverlayEnum.GAME){
+            for(let i of game.capture_area){
+
+                for(let x = 0; x < i.cx2 - i.cx1; x++){
+                    for(let y = 0; y < i.cy2 - i.cy1; y++){
+                        if(simulation.isOccupied((x + i.cx1), (y + i.cy1), null)){
+                            let n = app.config.CANVAS_WIDTH * (y + Math.floor(i.dy1)) + (x + Math.floor(i.dx1));
+                            app.imageData.data[4 * n] = 255;
+                            app.imageData.data[4 * n + 1] = 0;
+                            app.imageData.data[4 * n + 2] = 0;
+                            app.imageData.data[4 * n + 3] = 255;
+                        }
+                    }
                 }
             }
         }
 
+        // Draw the particles
+        if(app.overlayMode !== OverlayEnum.GAME){
+            const P = simulation.particles.length
+            for(let i = 0; i < P; i++){
+                let e = simulation.particles[i]
+                if(!e.active){continue;}
+                let c = e.base().color;
+                for(var k = 0; k < app.config.PX_SIM_RATIO; k++){
+                    for(var l = 0; l < app.config.PX_SIM_RATIO; l++){
+                        let n = app.config.CANVAS_WIDTH * (3*e.y + l) + 3*e.x + k;
+
+                        app.imageData.data[4*n] = c[1];
+                        app.imageData.data[4*n+1] = c[2];
+                        app.imageData.data[4*n+2] = c[3];
+                        app.imageData.data[4*n+3] = 255;
+                    }
+                }
+            }
+
+        }
+        
         app.ctx.putImageData(app.imageData, 0, 0);
-        
-        
+        let txt = ""
+        switch(app.overlayMode){
+            case OverlayEnum.PRESSURE:
+                txt = "Pressure View"
+                break;
+            case OverlayEnum.VELOCITYX:
+                txt = "Velocity X View"
+                break;
+            case OverlayEnum.VELOCITYY:
+                txt = "Velocity Y View"
+                break;
+            case OverlayEnum.GAME:
+                txt = "Game View, this will allow placing particle contraptions into the world. Currently under construction :)"
+                break;
+            case OverlayEnum.DETONATOR_PLACEMENT:
+                txt = "Detonator Edit"
+                break;
+        }
+        app.ctx.font = '16px Barlow';
+        app.ctx.fillStyle = 'white';
+        app.ctx.fillText(txt, 10, app.config.CANVAS_HEIGHT - 10); 
         // Draw the mouse cursor
         app.ctx.beginPath();
         app.ctx.arc(app.mousePos.x, app.mousePos.y, app.brushSize * app.config.PX_SIM_RATIO, 0, 2 * Math.PI, false);
         app.ctx.lineWidth = 1;
         app.ctx.strokeStyle = '#fff'; // Outline color
         app.ctx.stroke();
-        return;
+        
+        // Debug
+        // app.ctx.strokeRect(10 * app.config.PX_SIM_RATIO, 10 * app.config.PX_SIM_RATIO, 30 * app.config.PX_SIM_RATIO, 30 * app.config.PX_SIM_RATIO);
+
+
+    
     }
 }
 
@@ -362,6 +529,7 @@ const simulation = {
         simulation.velocity_grid_y =    new Float32Array2D((simulation.config.WIDTH), (simulation.config.HEIGHT))
         simulation.pblock_grid =        new Float32Array2D((simulation.config.WIDTH), (simulation.config.HEIGHT))
 
+
         // To save lookup time, pre-copy undefined base particle properties
         for(let property in this.default_particle)
             for(let particleName in this.particleData)
@@ -404,15 +572,21 @@ const simulation = {
         for(let i = 1; i < app.config.SIM_WIDTH - 1; i++){
             for(let j = 1; j < app.config.SIM_HEIGHT - 1; j++){
             /* Update Velocity */
-                let gradx = (simulation.pressure_grid.qget(i - 1, j) - simulation.pressure_grid.qget(i + 1, j));
-                let grady = (simulation.pressure_grid.qget(i, j - 1) - simulation.pressure_grid.qget(i, j + 1));
-
+                if(simulation.pblock_grid.qget(i, j)){
+                    simulation.velocity_grid_x.qset(i, j, 0);
+                    simulation.velocity_grid_y.qset(i, j, 0);
+                    continue;
+                }
+                let gradx = ((simulation.pblock_grid.qget(i - 1, j) ? simulation.pressure_grid.qget(i, j) : simulation.pressure_grid.qget(i - 1, j)) - (simulation.pblock_grid.qget(i + 1, j) ? simulation.pressure_grid.qget(i, j) : simulation.pressure_grid.qget(i + 1, j)));
+                let grady = ((simulation.pblock_grid.qget(i, j - 1) ? simulation.pressure_grid.qget(i, j) : simulation.pressure_grid.qget(i, j - 1)) - (simulation.pblock_grid.qget(i, j + 1) ? simulation.pressure_grid.qget(i, j) : simulation.pressure_grid.qget(i, j + 1)));
+                
                     
-                    simulation.velocity_grid_x.qinc(i, j, dt * gradx * a);
-                    simulation.velocity_grid_y.qinc(i, j,  dt * grady * a);
+                simulation.velocity_grid_x.qinc(i, j, dt * gradx * a);
+                simulation.velocity_grid_y.qinc(i, j,  dt * grady * a);
 
-                    simulation.velocity_grid_x.qset(i, j, simulation.velocity_grid_x.qget(i, j) * decay);
-                    simulation.velocity_grid_y.qset(i, j, simulation.velocity_grid_y.qget(i, j) * decay);
+                simulation.velocity_grid_x.qset(i, j, simulation.velocity_grid_x.qget(i, j) * decay);
+                simulation.velocity_grid_y.qset(i, j, simulation.velocity_grid_y.qget(i, j) * decay);
+
                 }    
         }
     },
@@ -426,20 +600,23 @@ const simulation = {
 
                     // Get divergence
                     let gain = 0
-    
+                    if(!simulation.pblock_grid.qget(i, j)){
                     gain += (simulation.velocity_grid_x.qget(i - 1, j) - simulation.velocity_grid_x.qget(i + 1, j))
                     gain += (simulation.velocity_grid_y.qget(i, j - 1) - simulation.velocity_grid_y.qget(i, j + 1))
-
+                    } else continue;
                     // Alter pressure according to divergence
                     simulation.pressure_grid.qinc(i, j, gain * dt * b);
 
                     // Smoothe the pressure
                     let avg = 0
+                    let n = 0
                     for(let p = -1; p <= 1; p++) for(let q = -1; q <= 1; q++){
+                        if(simulation.pblock_grid.qget(i + p, j + q)) continue;
                         avg += simulation.pressure_grid.qget(i + p, j + q)
+                        n++;
                     }
                     
-                    simulation.pressure_grid.qset(i, j, avg / 9);
+                    simulation.pressure_grid.qset(i, j, avg / n);
         }}
 
     },
@@ -467,8 +644,8 @@ const simulation = {
     qIsOccupied: function(x, y){
         return simulation.isInBound(x,y) && simulation.grid[x][y] !== undefined;
     },
-    addParticle: function(x, y, vx = 0, vy = 0, id = 1){
-        if(simulation.isOccupied(Math.floor(x), Math.floor(y), null)) return -1;
+    addParticle: function(x, y, vx = 0, vy = 0, id = 1, force = false){
+        if(!force && simulation.isOccupied(Math.floor(x), Math.floor(y), null)) return -1;
         for (let e of this.particles){
             if(e.active){continue;}
             e._x = x;
@@ -485,9 +662,11 @@ const simulation = {
         return -1; // Fail
     },
 
-    removeParticle: function(x, y){
+    removeParticle: function(x, y, id = null){
         let _x = Math.floor(x); let _y = Math.floor(y)
         if(simulation.isOccupied(_x, _y, null)){
+            let p =  simulation.getOccupied(_x, _y, null)
+            if(id !== null && p.id !== id) return;
             simulation.getOccupied(_x, _y, null).deactivate();
             simulation.unsetGrid(_x, _y);
         }
@@ -555,6 +734,38 @@ class Float32Array2D extends Float32Array{
         this[w * (simulation.config.HEIGHT) + h] += val
     }
 }
+class Int8Array2D extends Int8Array{
+    constructor(w, h){
+        super(w * h);
+        this.fill(0);
+    }
+    isInBound(w, h){let v = w * (simulation.config.HEIGHT) + h; return 0 < v && v < this.length}
+    
+    // Array lookup with bounds check
+    get(w, h){
+        if(h >= simulation.config.HEIGHT || h < 0) return;
+        return this[w * (simulation.config.HEIGHT) + h]
+    }
+    set(w, h, val){
+        if(h >= simulation.config.HEIGHT || h < 0) return;
+        this[w * (simulation.config.HEIGHT) + h] = val}
+    inc(w, h, val){
+        if(h >= simulation.config.HEIGHT || h < 0) return;
+        this[w * (simulation.config.HEIGHT) + h] += val
+    }
+
+    // Quick array lookup without bounds check
+    qget(w, h){
+        return this[w * (simulation.config.HEIGHT) + h]
+    }
+    qset(w, h, val){
+        this[w * (simulation.config.HEIGHT) + h] = val}
+    qinc(w, h, val){
+        this[w * (simulation.config.HEIGHT) + h] += val
+    }
+}
+
+
 
 class Particle {
     constructor(x = 0, y = 0, vx = 0, vy = 0){
@@ -583,7 +794,15 @@ class Particle {
             this.base().pre_physics_update(this, dt);
         }
         
-    
+        let op = this.get('overpressure')
+        if(op[0] < Infinity && (simulation.pressure_grid.qget(this.x   , this.y) > op[0] ||
+           simulation.pressure_grid.qget(this.x -1, this.y) > op[0] ||
+           simulation.pressure_grid.qget(this.x +1, this.y) > op[0] ||
+           simulation.pressure_grid.qget(this.x, this.y -1) > op[0] ||
+           simulation.pressure_grid.qget(this.x, this.y +1) > op[0] 
+           )){
+            op[1](this, dt, null);
+        }
         for(let i of this.get('interact')){
             if(!((Math.floor(i[2] * Math.random()))% i[2])){
                 simulation.iterAround(this.x, this.y, (x, y) => {
@@ -617,6 +836,8 @@ class Particle {
                 return;
             }
         }
+
+
         
         // _ N _
         // W X E
@@ -731,6 +952,7 @@ class Particle {
     }
 
     deactivate(){
+        this.base().on_deactivate(this);
         simulation.unsetGrid(this.x, this.y);
         this.x = 0;
         this.y = 0;
@@ -778,6 +1000,54 @@ class Particle {
       }
 }
 
+
+/* Not implemented */
+const game = {
+    capture_area: [
+        {
+            cx1: 10,
+            cy1: 10,
+            cx2: 40,
+            cy2: 40,
+            dx1: 100,
+            dy1: 100,
+            vx: 0,
+            vy: 0,
+            r: 0,
+            mass: 100
+        }
+    ],
+
+    update: function(dt){
+        for(let i of this.capture_area){
+            i.vy += 200 * dt
+            if(i.dy1 > 700 && i.vy >= 0){
+                i.vx *= 0.9
+                i.vy = 0
+            }
+            if(i.dy1 < 10 && i.vy <= 0){
+                i.vx *= 0.9
+                i.vy = 0
+            }
+            i.dy1 += i.vy * dt
+            i.dx1 += i.vx * dt
+            // Physics simulation
+            let vyTotal = 0
+            for(let x = i.cx1; x < i.cx2; x++){ // y Velocity in y = min, y = max
+                vyTotal += simulation.velocity_grid_y.get(x, i.cy1)
+                vyTotal += simulation.velocity_grid_y.get(x, i.cy2)
+            }
+            let vxTotal = 0
+            for(let y = i.cy1; y < i.cy2; y++){ // x Velocity in x = min, x = max
+                vxTotal += simulation.velocity_grid_x.get(i.cx1, y)
+                vxTotal += simulation.velocity_grid_x.get(i.cx2, y)
+            }
+            // Move opposite of air vx
+            i.vx -= vxTotal / i.mass;
+            i.vy -= vyTotal / i.mass;
+        }
+    }
+}
 
 // Start the app
 app.start()

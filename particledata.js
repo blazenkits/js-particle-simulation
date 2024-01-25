@@ -16,16 +16,20 @@ default_particle = {
     dispersion_rate: 10,
     friction: 10,
     mass: 1,
+    class: 1,
     interact:[],
     env_interact:[],
     color:  ['#777777', 119, 119, 119],
     lifespan: Infinity,
     tooltip: " ",
-    blocks_pressure: false,
+    blocks_pressure: false, // Currently unfunctional, use cfn_wall physics override instead
     e: 0.8, // Coeff. of restitution.
     do_collision_sim: true,
     cohesion: 0.01,
     base_temp: 273,
+    overpressure: [Infinity],
+    on_activate: () => {},
+    on_deactivate: () => {}
 }
 
 const Particles = {
@@ -43,10 +47,20 @@ const Particles = {
 
     // Solids
     WALL: 12,
-    FUSE: 13
+    MESH: 13,
+    FUSE: 14,
+    ROCK_WALL: 16,
+    GLASS: 17,
+
+    // Special
+    DETONATOR: 15
     
 }
-
+const ParticleClass = {
+    POWDER: 1,
+    DESTRUCTABLE_WALL: 2,
+    INDESTRUCTABLE: 3
+}
 
 const particle_data = {}
 
@@ -184,12 +198,29 @@ particle_data[Particles.TNT] = {
 
 particle_data[Particles.WALL] = {
     name: "Wall",
-    tooltip: "Stops all particles in its path.",
+    tooltip: "Indestructable and immovable. Blocks pressure",
     friction: 30,
     dispersion_rate: 0,
     gravity: 0,
     solid: true,
     color: ['#ffffff', 255, 255, 255],
+    blocks_pressure: true,
+    class: ParticleClass.INDESTRUCTABLE,
+
+    override_physics: cfn_wall_physics,
+    on_deactivate: cfn_wall_deactivate
+}
+
+particle_data[Particles.MESH] = {
+    name: "Mesh",
+    tooltip: "Like a wall, but allows airflow through it.",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#333333', 51, 51, 51],
+    
+    class: ParticleClass.INDESTRUCTABLE,
     blocks_pressure: true,
 
     override_physics: function(particle, dt){
@@ -199,6 +230,39 @@ particle_data[Particles.WALL] = {
     }
 }
 
+particle_data[Particles.GLASS] = {
+    name: "Glass",
+    tooltip: "Glass. Will shatter under pressure.",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#333333', 51, 51, 51],
+    blocks_pressure: true,
+    overpressure: [10, cfn_destroy],
+    class: ParticleClass.DESTRUCTABLE_WALL,
+
+
+    override_physics: cfn_wall_physics,
+    on_deactivate: cfn_wall_deactivate
+}
+
+particle_data[Particles.ROCK_WALL] = {
+    name: "Rock Wall",
+    tooltip: "Destructable yet immovable. Blocks pressure",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#767e8a', 118, 126, 138],
+    blocks_pressure: true,
+    
+    class: ParticleClass.DESTRUCTABLE_WALL,
+    overpressure: [100, cfn_turn_into(Particles.ROCK, 0, 0)],
+
+    override_physics: cfn_wall_physics,
+    on_deactivate: cfn_wall_deactivate
+}
 particle_data[Particles.FUSE] = {
     name: "Fuse",
     tooltip: "Solid. Will ignite at a steady pace.",
@@ -207,12 +271,29 @@ particle_data[Particles.FUSE] = {
     gravity: 0,
     solid: true,
     color: ['#2b5761', 43, 87, 97],
-    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE, 1, 5), 1]],
-    override_physics: function(particle, dt){
-        particle.vx = 0
-        particle.vy = 0
-        simulation.setGrid(particle);
-    }
+    interact:[[Particles.FIRE, cfn_turn_into(Particles.FIRE, 0, 5), 1]],
+    overpressure: [100, cfn_turn_into(Particles.SAND, 0, 0)],
+    class: ParticleClass.DESTRUCTABLE_WALL,
+    override_physics: cfn_nophysics
+}
+
+particle_data[Particles.DETONATOR] = {
+    name: "Detonator",
+    tooltip: "When pressed Q, will ignite.",
+    friction: 30,
+    dispersion_rate: 0,
+    gravity: 0,
+    solid: true,
+    color: ['#03fca1', 3, 252, 161],
+    pre_physics_update: function(particle, dt){
+        if (!app.detonateAtFrame) return;
+        let _x = particle.x; let _y = particle.y;
+        particle.deactivate();
+        simulation.addParticle(_x, _y, 0, 0, Particles.FIRE)//-2 + 4 * Math.random(), -Math.random(), 5);
+    },
+
+    override_physics: cfn_nophysics,
+    class: ParticleClass.INDESTRUCTABLE
 }
 
 
@@ -352,8 +433,8 @@ function cfn_fire_physics(particle, dt){
 
 
 function cfn_turn_into(into, velRandF = 0, minTick = 1){
-    return (particle, dt, other) => {
-        if(other.ticks < minTick) return;
+    return (particle, dt, other = null) => {
+        if(other !== null && other.ticks < minTick) return;
         
         let _x = particle.x; let _y = particle.y;
         particle.deactivate();
@@ -363,3 +444,20 @@ function cfn_turn_into(into, velRandF = 0, minTick = 1){
 
 
 function cfn_destroy(particle, dt, other){particle.deactivate()};
+function cfn_nophysics(particle, dt){
+        particle.vx = 0
+        particle.vy = 0
+
+}
+
+function cfn_wall_physics(particle, dt){
+    particle.vx = 0
+    particle.vy = 0
+
+    simulation.pblock_grid.qset(particle.x, particle.y, 1)
+    simulation.setGrid(particle);
+}
+
+function cfn_wall_deactivate(particle){ 
+    simulation.pblock_grid.qset(particle.x, particle.y, 0)
+}

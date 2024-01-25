@@ -24,11 +24,15 @@
       gap: 10px;
     }
 
+    #brush-size-range{
+      width: 200px;
+    }
+
     #create-particle-menu {
       margin-left: 10px
     }
 
-    #particle-list {
+    .particle-list {
       display: grid;
       grid-template-columns: repeat(4,100px);
       grid-gap: 10px;
@@ -54,6 +58,20 @@
       --bs-tooltip-max-width: 600px;
     }
 
+    .scrollable {
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+
+    #scroll-info{
+      position: fixed;
+      bottom: 50px;
+      right: 50px;
+      background-color: rgba(48, 122, 233, 0.9);
+      color: white;
+      padding: 20px;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body class="bg-dark text-white">
@@ -73,16 +91,17 @@
         </table>
         
       </div>
-      <div class="col-md-4 flex-grow-1">
+      <div class="col-md-4 flex-grow-1 scrollable">
         <br/>
         <h2>A Particle Sandbox</h2>
         <p>v.beta-1.0</p>
-        <hr/>
+        <hr/> 
+        <b>Controls</b>
         <p>
           <code>Left-Click & Drag</code> with mouse/finger to create particles <br>
           <code>Scroll</code> with mouse to change brush size<br>
           <code>Right-Click</code> with mouse to delete particles<br>
-          Check out the pressure view!
+          <code>Keyboard 1~3</code> to cycle through different views <br><code>` or 0</code> to clear views
         </p>
 
         <div class="column">
@@ -91,12 +110,12 @@
           </div>
         
           <div class="row-md-4">
-            <button class="btn btn-secondary" onclick="app.onDrawPressureGridButtonPressed()">Pressure View</button> <code> (1)</code>
+            <button class="btn btn-secondary" onclick="app.overlayChange(1)">Pressure View</button> <code> (1)</code>
           </div>
         <br/><hr/>
         </div>
         <label for="brush-size-range" class="form-label">Brush Size</label>
-        <input type="range" class="form-range" id="brush-size-range"  min="1" max="5" step="1" value="1">
+        <input type="range" class="form-range" id="brush-size-range"  min="1" max="5" step="1" value="1"><br/>
         <button class="btn btn-danger" onclick="location.reload(false)">Reload</button>
         <br/><br/>
         
@@ -106,65 +125,30 @@
         
         <hr/>
         <div>
-          <b>Particles</b> <br/>
-        <div id="particle-list">
-          <!--
-          <div class="particle-item">
-            <button type="button" class="btn btn-primary particle-button">sdf</button>
-            Test
-          </div>
-          -->
+          <h4>Particles</h4>
+          <b>Powders</b> <br/>
+        <div id="particles" class="particle-list">
         </div>
+        
+        <br/>
+          <b>Destructable Walls</b>
+          <div id="destructable-wall-particles" class="particle-list">
+          </div>
+           <br/>
+          
+          <b>Indestructables</b> <br/>
+          <div id="indestructable-particles" class="particle-list">
+          </div>
         </div>
 
         <br/>
-<!--
-        <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#create-particle-menu" aria-expanded="false" aria-controls="create-particle-menu">
-            Create..
-        </button>
 
-
-
-
-
-        <div class="collapse" id="create-particle-menu">
-          <b>Create a particle..</b>
-          <br/>
-
-          Dispersion rate
-          <input type="range" min="1" max="100" value="50">
-          <br/>
-
-          Friction
-          <input type="range" min="1" max="100" value="50">
-          <br/>
-
-          Particle color
-          <input type="color" id="colorPicker" name="colorPicker" value="#ff0000">
-
-          
-          Particle Physics
-          -> Standard
-          -> Bouncy
-          
-        </div>
-        <hr/>
-        <div class="settings">
-          <b>Simulation Settings</b>
-          <br/>
-          Simulation Speed (Requires Pause/Resume)
-          <input type="range" min="1" max="100" value="50">
-          <br/>
-          Gravity
-          <input type="range" min="1" max="100" value="50">
-          <br/>
-          <hr/>
-        </div>
-      </div>
-      <br/>
-      -->
       <a href="https://github.com/blazenkits/js-particle-simulation/tree/main" class="text-info">Github Source</a>
     </div>
+  </div>
+
+  <div id="scroll-info">
+    <p>Scroll down to see more!</p>
   </div>
 
   <script src="https://unpkg.com/@popperjs/core@2"></script>
