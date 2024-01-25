@@ -15,7 +15,7 @@ const OverlayEnum = {
     
 }
 const app = {
-    debug_mode: true,
+    debug_mode: false,
     running: false,
     overlayMode: OverlayEnum.NONE,
     canvas: null,
