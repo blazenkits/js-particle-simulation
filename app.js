@@ -149,7 +149,7 @@ const app = {
 
     
         app.canvas.addEventListener('touchstart', function(event) {
-            event.preventDefault();
+            if (app.running) event.preventDefault();
             app.isDrawing = true;
             var mousePos = app.getMousePos(app.canvas, event.touches[0]);
             app.mousePos = mousePos
@@ -158,7 +158,7 @@ const app = {
     
         app.canvas.addEventListener('touchmove', function(event) {
             if(event.touches.length > 1) return;
-            event.preventDefault();
+            if (app.running) event.preventDefault();
             if (app.isDrawing) {
                 var mousePos = app.getMousePos(app.canvas, event.touches[0]);
                 let launchspd = 0.1;
@@ -172,7 +172,7 @@ const app = {
         });
     
         app.canvas.addEventListener('touchend', function() {
-            event.preventDefault();
+            if (app.running) event.preventDefault();
             app.isDrawing = false;
         });
     
