@@ -149,6 +149,7 @@ const app = {
 
     
         app.canvas.addEventListener('touchstart', function(event) {
+            event.preventDefault();
             app.isDrawing = true;
             var mousePos = app.getMousePos(app.canvas, event.touches[0]);
             app.mousePos = mousePos
@@ -171,6 +172,7 @@ const app = {
         });
     
         app.canvas.addEventListener('touchend', function() {
+            event.preventDefault();
             app.isDrawing = false;
         });
     
