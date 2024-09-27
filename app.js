@@ -73,7 +73,9 @@ const app = {
         app.particleList = document.getElementById("particles");
         app.config.SIM_HEIGHT = Math.floor(app.config.HEIGHT / app.config.PX_SIM_RATIO);
         app.config.SIM_WIDTH = Math.floor(app.config.WIDTH / app.config.PX_SIM_RATIO);
+        app.canvas.height = app.canvas.width;
         app.config.CANVAS_HEIGHT = app.canvas.height;
+        
         app.config.CANVAS_WIDTH = app.canvas.width;
 
         app.imageData = app.ctx.createImageData(app.config.CANVAS_WIDTH, app.config.CANVAS_HEIGHT);
