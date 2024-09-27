@@ -162,10 +162,10 @@ const app = {
             if (app.isDrawing) {
                 var mousePos = app.getMousePos(app.canvas, event.touches[0]);
                 let launchspd = 0.1;
-                
                 app.mousevx = app.config.LAUNCH_SPEED_MUL * (mousePos.x - app.mousePos.x);
                 app.mousevy = app.config.LAUNCH_SPEED_MUL * (mousePos.y - app.mousePos.y);
                 app.mousePos = mousePos;
+                app.drawParticleFromInput();
 
             }
             
