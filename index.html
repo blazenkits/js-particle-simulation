@@ -74,17 +74,22 @@
     }
 
     #main-canvas{
-      margin: 10px;
-      width: 100%;
+      display: block;
+      margin: 2% auto;
+      max-height: 80vh;
+      max-width: 95%;
+      width: auto;
       height: auto;
+      
     }
+
 
   </style>
 </head>
 <body class="bg-dark text-white">
   <div class="container-fluid">
     <div class="row">
-      <div class="col-sm-12 col-md-12 col-lg-7 col-xl-8" >
+      <div class="col-sm-12 col-md-12 col-lg-7 col-xl-8"  id="main-content" >
         <canvas id="main-canvas" width="800" height="800"></canvas>
         <table class="table table-dark"> 
           <tr>

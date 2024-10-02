@@ -268,7 +268,7 @@ const app = {
             app.fpsCounter.innerHTML = "" + (1000/app.frameTime).toFixed(1)
         }, 1000);
 
-        app.resume();
+        // app.resume();
     },
 
     drawParticleFromInput(){
