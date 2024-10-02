@@ -12,11 +12,6 @@
   <style>
     body {
       font-family: 'Barlow', sans-serif;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;  
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
     }
     canvas {
       border: 1px solid #fff;
@@ -77,13 +72,20 @@
       padding: 20px;
       border-radius: 5px;
     }
+
+    #main-canvas{
+      margin: 10px;
+      width: 100%;
+      height: auto;
+    }
+
   </style>
 </head>
 <body class="bg-dark text-white">
   <div class="container-fluid">
     <div class="row">
-      <div class="col-sm">
-        <canvas id="main-canvas" style= "width: 100%; height: 100%;"></canvas>
+      <div class="col-sm-12 col-md-12 col-lg-7 col-xl-8" >
+        <canvas id="main-canvas" width="800" height="800"></canvas>
         <table class="table table-dark"> 
           <tr>
             <td>Particle Count&nbsp;&nbsp;&nbsp;&nbsp;</td>
@@ -96,10 +98,10 @@
         </table>
         
       </div>
-      <div class="col-md-4 flex-grow-1 scrollable">
+      <div class="col-lg-5 col-xl-4 flex-grow-1 scrollable" id="menu">
         <br/>
         <h2>A Particle Sandbox</h2>
-        <p>v.beta-2.0</p>
+        <p>v.beta-2.1</p>
         <hr/> 
         <b>Controls</b>
         <p>
@@ -115,7 +117,7 @@
           </div>
         
           <div class="row-md-4">
-            <button class="btn btn-secondary" onclick="app.overlayChange(1)">Pressure View</button> <code> (1)</code>
+            <button class="btn btn-secondary" onclick="app.overlayChangeCycle()">Cycle Views..</button> <code> (1)</code>
           </div>
         <br/><hr/>
         </div>

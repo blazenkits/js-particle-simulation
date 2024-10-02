@@ -39,9 +39,9 @@ const app = {
 
     config: { // Contains config for the App. For config of Simulation, modify the config there.
         FPS: 60,            // FPS
-        HEIGHT: 800,        // Height of visible area
-        WIDTH: 800,         // Width of visible area
         
+        VISIBLE_HEIGHT: -1,
+        VISIBLE_WIDTH: -1,
         CANVAS_HEIGHT: -1,  // Height of canvas (ASSIGNED AT STARTUP)
         CANVAS_WIDTH: -1,   // Width of canvas (ASSIGNED AT STARTUP)
         PX_SIM_RATIO : 3,   // Actual pixels HEIGHT(WIDTH) * PX_SIM_RATIO
@@ -55,13 +55,18 @@ const app = {
     getMousePos(canvas, event) {
         var rect = canvas.getBoundingClientRect();
         return {
-            x: Math.floor(event.clientX - rect.left),
-            y: Math.floor(event.clientY - rect.top)
+            x: Math.floor(event.clientX - rect.left) * (app.config.CANVAS_WIDTH / app.config.VISIBLE_WIDTH),
+            y: Math.floor(event.clientY - rect.top) * (app.config.CANVAS_HEIGHT / app.config.VISIBLE_HEIGHT)
         };
     },
 
-
+    updateCanvasSize(){
+        app.config.VISIBLE_HEIGHT = parseInt(window.getComputedStyle(app.canvas).height);
+        app.config.VISIBLE_WIDTH = parseInt(window.getComputedStyle(app.canvas).width);
+        
+    },
     start: function(){
+        // Get Elements
         app.canvas = document.getElementById("main-canvas");
         app.toggleButton = document.getElementById("toggle-button");
         app.particleCounter = document.getElementById("particle-counter");
@@ -71,18 +76,25 @@ const app = {
         app.destructableWallParticleList = document.getElementById("destructable-wall-particles");
         app.indestructableParticleList = document.getElementById("indestructable-particles");
         app.particleList = document.getElementById("particles");
-        app.config.SIM_HEIGHT = Math.floor(app.config.HEIGHT / app.config.PX_SIM_RATIO);
-        app.config.SIM_WIDTH = Math.floor(app.config.WIDTH / app.config.PX_SIM_RATIO);
-        app.canvas.height = app.canvas.width;
-        app.config.CANVAS_HEIGHT = app.canvas.height;
         
+        // Dynamically set 
+        // Set Config
+
+        app.updateCanvasSize();
+        app.config.CANVAS_HEIGHT = app.canvas.height;
         app.config.CANVAS_WIDTH = app.canvas.width;
+        
+        app.config.SIM_HEIGHT = Math.floor(app.config.CANVAS_HEIGHT / app.config.PX_SIM_RATIO);
+        app.config.SIM_WIDTH = Math.floor(app.config.CANVAS_WIDTH / app.config.PX_SIM_RATIO);
+
+        
 
         app.imageData = app.ctx.createImageData(app.config.CANVAS_WIDTH, app.config.CANVAS_HEIGHT);
 
         // Add event listeners
         app.canvas.addEventListener("contextmenu", e => e.preventDefault());
 
+        window.addEventListener('resize', app.updateCanvasSize);
         app.canvas.addEventListener('mousedown', function(event) {
             if(event.button == 0){
                 app.isDrawing = true;
@@ -135,11 +147,12 @@ const app = {
             }
             app.brushSizeRange.value = app.brushSize;
         });
-        document.addEventListener('wheel', function(event){
-            if(event.deltaY > 0) {
-                document.getElementById("scroll-info").style.display = 'none'
-            }
+        document.getElementById("menu").addEventListener('scroll', function(event){
+            document.getElementById("scroll-info").style.display = 'none'
+            
         })
+
+
         app.canvas.addEventListener('mouseup', function() {
             app.isDrawing = false;
             app.isErasing = false;
@@ -307,10 +320,11 @@ const app = {
 
     overlayChange(id){
         this.overlayMode = id;
-
-
     },
-
+    overlayChangeCycle(){
+        var a = [0,1,2,3]
+        this.overlayMode = a[(++this.overlayMode) % a.length];
+    },
     toggle: function(){
         if(!app.running){app.resume()}else{app.pause()}
     },
